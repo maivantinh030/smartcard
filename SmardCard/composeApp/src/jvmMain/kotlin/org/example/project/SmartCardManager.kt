@@ -177,11 +177,17 @@ class SmartCardManager {
     fun writeCustomerInfo(customerID:String,name:String, dateOfBirth:String,phoneNumber:String,cardType:String): Boolean {
         return try{
             val data = ByteArray(95)
-            customerID.toByteArray().copyInto(data,0,0,minOf(customerID.length,15))
-            name.toByteArray().copyInto(data,15,0,minOf(name.length,50))
-            dateOfBirth.toByteArray().copyInto(data,65,0,minOf(dateOfBirth.length,10))
-            phoneNumber.toByteArray().copyInto(data,75,0,minOf(phoneNumber.length,10))
-            cardType.toByteArray().copyInto(data,85,0,minOf(cardType.length,10))
+            val customerIDBytes = customerID.toByteArray(Charsets.UTF_8)
+            val nameBytes = name.toByteArray(Charsets.UTF_8)
+            val dobBytes = dateOfBirth.toByteArray(Charsets.UTF_8)
+            val phoneBytes = phoneNumber.toByteArray(Charsets.UTF_8)
+            val cardTypeBytes = cardType.toByteArray(Charsets.UTF_8)
+
+            customerIDBytes.copyInto(data, 0, 0, minOf(customerIDBytes.size, 15))
+            nameBytes.copyInto(data, 15, 0, minOf(nameBytes.size, 50))
+            dobBytes.copyInto(data, 65, 0, minOf(dobBytes.size, 10))
+            phoneBytes.copyInto(data, 75, 0, minOf(phoneBytes.size, 10))
+            cardTypeBytes.copyInto(data, 85, 0, minOf(cardTypeBytes.size, 10))
             val command = byteArrayOf(0x80.toByte(), 0x01, 0x00, 0x00,data.size.toByte()) + data
             val response = this.sendCommand(command)
             println(response)
