@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -295,7 +296,37 @@ fun CustomerViewScreen(
                             )
 
                             Spacer(modifier = Modifier.height(16.dp))
+                            if (customer!!.anhKH != null) {
+                                val imageBitmap: ImageBitmap = remember(customer!!.anhKH) {
+                                    val img = ImageIO.read(customer!!.anhKH!!.inputStream())
+                                    img.toComposeImageBitmap()
+                                }
 
+                                Image(
+                                    bitmap = imageBitmap,
+                                    contentDescription = "Ảnh khách hàng",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp)
+                                        .clip(RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                // Placeholder khi không có ảnh
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp)
+                                        .background(Color(0xFFF0F0F0), RoundedCornerShape(12.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Không có ảnh",
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF999999)
+                                    )
+                                }
+                            }
 
                             if (customer!!.anhKH != null) {
                                 Spacer(modifier = Modifier.height(8.dp))

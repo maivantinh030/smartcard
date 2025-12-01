@@ -70,6 +70,7 @@ import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.example.project.screen.ChangePinScreen
 import org.example.project.screen.ConnectScreen
 import org.example.project.screen.CustomerViewScreen
 import org.example.project.screen.FloatingBubbles
@@ -92,7 +93,8 @@ enum class AppScreen {
     PIN_ENTRY,
     MAIN_MENU,
     WriteDataScreen,
-    CustomerDataScreen
+    CustomerDataScreen,
+    ChangePinScreen
 }
 
 @Composable
@@ -131,16 +133,16 @@ fun SmartCardApp() {
                 },
 
                 onNavigateChangePin={
-
+                    currentScreen = AppScreen.ChangePinScreen
                 },
                 smartCardManager = smartCardManager
 
             )
         }
-        AppScreen.WriteDataScreen -> {  // ✅ Add WriteDataScreen case
+        AppScreen.WriteDataScreen -> {
             WriteDataScreen(
-                smartCardManager = smartCardManager,  // ✅ Pass smartCardManager
-                onBack = { currentScreen = AppScreen.MAIN_MENU }  // ✅ Back navigation
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = AppScreen.MAIN_MENU }
             )
         }
         AppScreen.CustomerDataScreen -> {
@@ -148,6 +150,12 @@ fun SmartCardApp() {
                 smartCardManager = smartCardManager,
                 onBack = { currentScreen = AppScreen.MAIN_MENU }
             )
+        }
+        AppScreen.ChangePinScreen -> {
+             ChangePinScreen(
+                 smartCardManager = smartCardManager,
+                 onBack = { currentScreen = AppScreen.MAIN_MENU }
+             )
         }
     }
 }
