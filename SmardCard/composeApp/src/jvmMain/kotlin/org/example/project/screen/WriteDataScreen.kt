@@ -41,8 +41,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -53,6 +55,95 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 import org.jetbrains.skia.Image
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+
+data class ValidationState(
+    val isValid: Boolean = true,
+    val errorMessage: String = ""
+)
+
+// Object chứa các hàm validation
+object ValidationUtils {
+
+    fun validateCustomerID(customerID: String): ValidationState {
+        return when {
+            customerID.isEmpty() -> ValidationState(false, "Mã khách hàng không được để trống")
+            customerID.length < 3 -> ValidationState(false, "Mã khách hàng phải ít nhất 3 ký tự")
+            customerID.length > 15 -> ValidationState(false, "Mã khách hàng không được quá 15 ký tự")
+            !customerID.matches(Regex("^[A-Za-z0-9]+$")) -> ValidationState(false, "Mã khách hàng chỉ được chứa chữ cái và số")
+            else -> ValidationState(true, "")
+        }
+    }
+
+    fun validateName(name: String): ValidationState {
+        return when {
+            name.isEmpty() -> ValidationState(false, "Họ tên không được để trống")
+            name.trim().length < 2 -> ValidationState(false, "Họ tên phải ít nhất 2 ký tự")
+            name.length > 50 -> ValidationState(false, "Họ tên không được quá 50 ký tự")
+            !name.matches(Regex("^[a-zA-ZÀ-ỹ\\s]+$")) -> ValidationState(false, "Họ tên chỉ được chứa chữ cái và khoảng trắng")
+            name.trim().split("\\s+".toRegex()).size < 2 -> ValidationState(false, "Vui lòng nhập đầy đủ họ và tên")
+            else -> ValidationState(true, "")
+        }
+    }
+
+    fun validateDateOfBirth(dateStr: String): ValidationState {
+        return when {
+            dateStr.isEmpty() -> ValidationState(false, "Ngày sinh không được để trống")
+            !dateStr.matches(Regex("^\\d{2}/\\d{2}/\\d{4}$")) -> ValidationState(false, "Định dạng ngày sinh: dd/mm/yyyy")
+            else -> {
+                try {
+                    val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                    formatter.isLenient = false
+                    val date = formatter.parse(dateStr)
+                    val calendar = Calendar.getInstance()
+                    calendar.time = date!!
+
+                    val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+                    val birthYear = calendar.get(Calendar.YEAR)
+                    val age = currentYear - birthYear
+
+                    when {
+                        age < 16 -> ValidationState(false, "Khách hàng phải từ 16 tuổi trở lên")
+                        age > 100 -> ValidationState(false, "Tuổi không hợp lệ")
+                        else -> ValidationState(true, "")
+                    }
+                } catch (e: Exception) {
+                    ValidationState(false, "Ngày sinh không hợp lệ")
+                }
+            }
+        }
+    }
+
+    fun validatePhoneNumber(phoneNumber: String): ValidationState {
+        return when {
+            phoneNumber.isEmpty() -> ValidationState(false, "Số điện thoại không được để trống")
+            !phoneNumber.matches(Regex("^0\\d{9}$")) -> ValidationState(false, "Số điện thoại phải có 10 số và bắt đầu bằng 0")
+            !phoneNumber.matches(Regex("^(032|033|034|035|036|037|038|039|096|097|098|086|083|084|085|081|082|088|091|094|070|079|077|076|078|090|093|089|056|058|092|059|099)[0-9]{7}$")) ->
+                ValidationState(false, "Đầu số điện thoại không hợp lệ")
+            else -> ValidationState(true, "")
+        }
+    }
+
+    fun validateImage(imageBytes: ByteArray?): ValidationState {
+        return when {
+            imageBytes == null -> ValidationState(false, "Vui lòng chọn ảnh khách hàng")
+            imageBytes.size > 8192 -> ValidationState(false, "Kích thước ảnh quá lớn (tối đa 8KB)")
+            else -> ValidationState(true, "")
+        }
+    }
+
+    fun formatDateInput(input: String): String {
+        val cleaned = input.replace(Regex("[^\\d]"), "")
+        return when {
+            cleaned.length <= 2 -> cleaned
+            cleaned.length <= 4 -> "${cleaned.substring(0, 2)}/${cleaned.substring(2)}"
+            cleaned.length <= 8 -> "${cleaned.substring(0, 2)}/${cleaned.substring(2, 4)}/${cleaned.substring(4)}"
+            else -> "${cleaned.substring(0, 2)}/${cleaned.substring(2, 4)}/${cleaned.substring(4, 8)}"
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,33 +153,64 @@ fun WriteDataScreen(
 ) {
     var customerID by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
-    var dateOfBirth by remember { mutableStateOf("") }
+    var dateOfBirth by remember { mutableStateOf(TextFieldValue("")) }
     var phoneNumber by remember { mutableStateOf("") }
     var cardType by remember { mutableStateOf("THUONG") }
     var selectedImageBytes by remember { mutableStateOf<ByteArray?>(null) }
     var writeStatus by remember { mutableStateOf("") }
     var isWriting by remember { mutableStateOf(false) }
 
+    // Validation states
+    var customerIDValidation by remember { mutableStateOf(ValidationState()) }
+    var nameValidation by remember { mutableStateOf(ValidationState()) }
+    var dateValidation by remember { mutableStateOf(ValidationState()) }
+    var phoneValidation by remember { mutableStateOf(ValidationState()) }
+    var imageValidation by remember { mutableStateOf(ValidationState()) }
+    var showValidationErrors by remember { mutableStateOf(false) }
+
     val scope = rememberCoroutineScope()
     val cardTypes = listOf("THUONG", "VANG", "BACHKIM", "KIMCUONG")
 
-    // Background giống các màn hình khác
+    // Hàm validate realtime
+    fun validateField(field: String, value: String, imageBytes: ByteArray? = null) {
+        when (field) {
+            "customerID" -> customerIDValidation = ValidationUtils.validateCustomerID(value)
+            "name" -> nameValidation = ValidationUtils.validateName(value)
+            "dateOfBirth" -> dateValidation = ValidationUtils.validateDateOfBirth(value)
+            "phoneNumber" -> phoneValidation = ValidationUtils.validatePhoneNumber(value)
+            "image" -> imageValidation = ValidationUtils.validateImage(imageBytes)
+        }
+    }
+
+    // Check if form is valid
+    val isFormValid = customerIDValidation.isValid &&
+            nameValidation.isValid &&
+            dateValidation.isValid &&
+            phoneValidation.isValid &&
+            imageValidation.isValid &&
+            customerID.isNotEmpty() &&
+            name.isNotEmpty() &&
+            dateOfBirth.text.isNotEmpty() &&
+            phoneNumber.isNotEmpty() &&
+            selectedImageBytes != null
+
+    // Background
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFFFAFAFA),  // Trắng xám nhẹ
-                        Color(0xFFF5F5F5),  // Xám nhẹ
-                        Color(0xFFE8EAF6)   // Xanh tím nhẹ
+                        Color(0xFFFAFAFA),
+                        Color(0xFFF5F5F5),
+                        Color(0xFFE8EAF6)
                     ),
                     startY = 0f,
                     endY = 2000f
                 )
             )
     ) {
-        // Hiệu ứng bong bóng nhẹ giống MainMenuScreen
+        // Hiệu ứng bong bóng nhẹ
         FloatingBubbles()
 
         Column(
@@ -96,11 +218,11 @@ fun WriteDataScreen(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Header giống style MainMenuScreen
+            // Header
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF5C6BC0)), // Tím xanh nhẹ
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF5C6BC0)),
                 elevation = CardDefaults.cardElevation(8.dp)
             ) {
                 Row(
@@ -164,7 +286,6 @@ fun WriteDataScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Left Column - Form
                 Card(
                     modifier = Modifier.weight(2f),
                     shape = RoundedCornerShape(20.dp),
@@ -181,70 +302,145 @@ fun WriteDataScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Form fields với màu nhẹ nhàng
+                        // Customer ID Field
                         OutlinedTextField(
                             value = customerID,
-                            onValueChange = { customerID = it.take(15) },
+                            onValueChange = {
+                                customerID = it.take(15).uppercase()
+                                validateField("customerID", customerID)
+                            },
                             label = { Text("Mã khách hàng") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
+                            isError = showValidationErrors && !customerIDValidation.isValid,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF81C784), // Xanh lá nhẹ
-                                unfocusedBorderColor = Color(0xFFE0E0E0)
+                                focusedBorderColor = if (customerIDValidation.isValid) Color(0xFF81C784) else Color(0xFFE57373),
+                                unfocusedBorderColor = if (showValidationErrors && !customerIDValidation.isValid) Color(0xFFE57373) else Color(0xFFE0E0E0),
+                                errorBorderColor = Color(0xFFE57373)
                             )
                         )
+                        if (showValidationErrors && !customerIDValidation.isValid) {
+                            Text(
+                                text = customerIDValidation.errorMessage,
+                                color = Color(0xFFE57373),
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
+                        // Name Field
                         OutlinedTextField(
                             value = name,
-                            onValueChange = { name = it.take(50) },
+                            onValueChange = {
+                                name = it.take(50)
+                                validateField("name", name)
+                            },
                             label = { Text("Họ và tên") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
+                            isError = showValidationErrors && !nameValidation.isValid,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF64B5F6), // Xanh dương nhẹ
-                                unfocusedBorderColor = Color(0xFFE0E0E0)
+                                focusedBorderColor = if (nameValidation.isValid) Color(0xFF64B5F6) else Color(0xFFE57373),
+                                unfocusedBorderColor = if (showValidationErrors && !nameValidation.isValid) Color(0xFFE57373) else Color(0xFFE0E0E0),
+                                errorBorderColor = Color(0xFFE57373)
                             )
                         )
+                        if (showValidationErrors && !nameValidation.isValid) {
+                            Text(
+                                text = nameValidation.errorMessage,
+                                color = Color(0xFFE57373),
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedTextField(
-                                value = dateOfBirth,
-                                onValueChange = { dateOfBirth = it.take(10) },
-                                label = { Text("Ngày sinh") },
-                                placeholder = { Text("dd/mm/yyyy") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFFFFB74D), // Vàng cam nhẹ
-                                    unfocusedBorderColor = Color(0xFFE0E0E0)
-                                )
-                            )
+                            // Date of Birth Field với auto-format và cursor positioning
+                            Column(modifier = Modifier.weight(1f)) {
+                                OutlinedTextField(
+                                    value = dateOfBirth,
+                                    onValueChange = { newValue ->
+                                        val input = newValue.text
+                                        val currentText = dateOfBirth.text
 
-                            OutlinedTextField(
-                                value = phoneNumber,
-                                onValueChange = { phoneNumber = it.take(10) },
-                                label = { Text("Số điện thoại") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true,
-                                shape = RoundedCornerShape(12.dp),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFFBA68C8), // Tím nhẹ
-                                    unfocusedBorderColor = Color(0xFFE0E0E0)
+                                        // Chỉ format khi user đang gõ thêm
+                                        val formatted = if (input.length >= currentText.length) {
+                                            ValidationUtils.formatDateInput(input)
+                                        } else {
+                                            input // Cho phép xóa bình thường
+                                        }
+
+                                        // Update với cursor ở cuối
+                                        dateOfBirth = TextFieldValue(
+                                            text = formatted,
+                                            selection = TextRange(formatted.length)
+                                        )
+
+                                        if (formatted.length == 10) {
+                                            validateField("dateOfBirth", formatted)
+                                        }
+                                    },
+                                    label = { Text("Ngày sinh") },
+                                    placeholder = { Text("dd/mm/yyyy") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    isError = showValidationErrors && !dateValidation.isValid,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = if (dateValidation.isValid) Color(0xFFFFB74D) else Color(0xFFE57373),
+                                        unfocusedBorderColor = if (showValidationErrors && !dateValidation.isValid) Color(0xFFE57373) else Color(0xFFE0E0E0),
+                                        errorBorderColor = Color(0xFFE57373)
+                                    ),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                                 )
-                            )
+                                if (showValidationErrors && !dateValidation.isValid) {
+                                    Text(
+                                        text = dateValidation.errorMessage,
+                                        color = Color(0xFFE57373),
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                                    )
+                                }
+                            }
+
+                            // Phone Number Field
+                            Column(modifier = Modifier.weight(1f)) {
+                                OutlinedTextField(
+                                    value = phoneNumber,
+                                    onValueChange = {
+                                        phoneNumber = it.take(10)
+                                        validateField("phoneNumber", phoneNumber)
+                                    },
+                                    label = { Text("Số điện thoại") },
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    isError = showValidationErrors && !phoneValidation.isValid,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = if (phoneValidation.isValid) Color(0xFFBA68C8) else Color(0xFFE57373),
+                                        unfocusedBorderColor = if (showValidationErrors && !phoneValidation.isValid) Color(0xFFE57373) else Color(0xFFE0E0E0),
+                                        errorBorderColor = Color(0xFFE57373)
+                                    )
+                                )
+                                if (showValidationErrors && !phoneValidation.isValid) {
+                                    Text(
+                                        text = phoneValidation.errorMessage,
+                                        color = Color(0xFFE57373),
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Card type selection với màu gradient nhẹ
+                        // Card type selection
                         Text(
                             text = "💳 Loại thẻ",
                             fontSize = 14.sp,
@@ -258,10 +454,10 @@ fun WriteDataScreen(
                             cardTypes.forEach { type ->
                                 val isSelected = cardType == type
                                 val (emoji, color) = when (type) {
-                                    "THUONG" -> "🤍" to Color(0xFF81C784) // Xanh lá nhẹ
-                                    "VANG" -> "💛" to Color(0xFFFFB74D)   // Vàng cam nhẹ
-                                    "BACHKIM" -> "🤍" to Color(0xFF64B5F6) // Xanh dương nhẹ
-                                    "KIMCUONG" -> "💎" to Color(0xFFBA68C8) // Tím nhẹ
+                                    "THUONG" -> "🤍" to Color(0xFF81C784)
+                                    "VANG" -> "💛" to Color(0xFFFFB74D)
+                                    "BACHKIM" -> "🤍" to Color(0xFF64B5F6)
+                                    "KIMCUONG" -> "💎" to Color(0xFFBA68C8)
                                     else -> "🤍" to Color.Gray
                                 }
 
@@ -299,7 +495,8 @@ fun WriteDataScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(6.dp)
+                        elevation = CardDefaults.cardElevation(6.dp),
+                        border = if (showValidationErrors && !imageValidation.isValid) BorderStroke(1.dp, Color(0xFFE57373)) else null
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
                             Text(
@@ -331,13 +528,21 @@ fun WriteDataScreen(
                                         )
                                     }
                                 }
+                                // Hiển thị kích thước ảnh
+                                Text(
+                                    text = "Kích thước: ${selectedImageBytes!!.size} bytes",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF666666),
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
                             } else {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(140.dp)
                                         .background(
-                                            Color(0xFFF8F9FA),
+                                            if (showValidationErrors && !imageValidation.isValid)
+                                                Color(0xFFFFEBEE) else Color(0xFFF8F9FA),
                                             RoundedCornerShape(12.dp)
                                         ),
                                     contentAlignment = Alignment.Center
@@ -353,22 +558,43 @@ fun WriteDataScreen(
                                 }
                             }
 
+                            if (showValidationErrors && !imageValidation.isValid) {
+                                Text(
+                                    text = imageValidation.errorMessage,
+                                    color = Color(0xFFE57373),
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+
                             Spacer(modifier = Modifier.height(12.dp))
 
                             Button(
                                 onClick = {
                                     val fileDialog = java.awt.FileDialog(null as java.awt.Frame?, "Chọn ảnh", java.awt.FileDialog.LOAD)
+                                    fileDialog.setFilenameFilter { _, name ->
+                                        name.lowercase().endsWith(".jpg") ||
+                                                name.lowercase().endsWith(".jpeg") ||
+                                                name.lowercase().endsWith(".png")
+                                    }
                                     fileDialog.isVisible = true
 
                                     if (fileDialog.file != null) {
-                                        val file = java.io.File(fileDialog.directory, fileDialog.file)
-                                        selectedImageBytes = compressImage(file.toString())
+                                        try {
+                                            val file = java.io.File(fileDialog.directory, fileDialog.file)
+                                            selectedImageBytes = compressImage(file.toString())
+                                            validateField("image", "", selectedImageBytes)
+                                            writeStatus = "✅ Đã chọn ảnh thành công"
+                                        } catch (e: Exception) {
+                                            writeStatus = "❌ Lỗi khi xử lý ảnh: ${e.message}"
+                                            selectedImageBytes = null
+                                        }
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF64B5F6) // Xanh dương nhẹ
+                                    containerColor = Color(0xFF64B5F6)
                                 )
                             ) {
                                 Text("📁 Chọn ảnh", fontSize = 14.sp, color = Color.White)
@@ -378,29 +604,46 @@ fun WriteDataScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Action Buttons với màu gradient nhẹ
+                    // Action Buttons
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = {
-                                scope.launch {
-                                    isWriting = true
-                                    writeStatus = "Đang ghi dữ liệu..."
+                                // Validate tất cả các field
+                                validateField("customerID", customerID)
+                                validateField("name", name)
+                                validateField("dateOfBirth", dateOfBirth.text)
+                                validateField("phoneNumber", phoneNumber)
+                                validateField("image", "", selectedImageBytes)
+                                showValidationErrors = true
 
-                                    smartCardManager.writeCustomerInfo(customerID, name, dateOfBirth, phoneNumber, cardType)
+                                if (isFormValid) {
+                                    scope.launch {
+                                        isWriting = true
+                                        writeStatus = "Đang ghi dữ liệu..."
 
-                                    selectedImageBytes?.let {
-                                        smartCardManager.writeCustomerImage(it)
+                                        try {
+                                            smartCardManager.writeCustomerInfo(customerID, name, dateOfBirth.text, phoneNumber, cardType)
+
+                                            selectedImageBytes?.let {
+                                                smartCardManager.writeCustomerImage(it)
+                                            }
+
+                                            writeStatus = "✅ Ghi thành công!"
+                                        } catch (e: Exception) {
+                                            writeStatus = "❌ Lỗi ghi dữ liệu: ${e.message}"
+                                        } finally {
+                                            isWriting = false
+                                        }
                                     }
-
-                                    writeStatus = "✅ Ghi thành công!"
-                                    isWriting = false
+                                } else {
+                                    writeStatus = "❌ Vui lòng kiểm tra lại thông tin đã nhập"
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !isWriting && customerID.isNotEmpty() && name.isNotEmpty(),
+                            enabled = !isWriting,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF81C784) // Xanh lá nhẹ
+                                containerColor = if (isFormValid) Color(0xFF81C784) else Color(0xFFBDBDBD)
                             )
                         ) {
                             if (isWriting) {
@@ -420,25 +663,52 @@ fun WriteDataScreen(
                             onClick = {
                                 customerID = ""
                                 name = ""
-                                dateOfBirth = ""
+                                dateOfBirth = TextFieldValue("")
                                 phoneNumber = ""
                                 cardType = "THUONG"
                                 selectedImageBytes = null
                                 writeStatus = ""
+                                showValidationErrors = false
+                                // Reset validation states
+                                customerIDValidation = ValidationState()
+                                nameValidation = ValidationState()
+                                dateValidation = ValidationState()
+                                phoneValidation = ValidationState()
+                                imageValidation = ValidationState()
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFE57373) // Đỏ nhạt
+                                containerColor = Color(0xFFE57373)
                             )
                         ) {
                             Text("🗑️ Xóa tất cả", fontSize = 14.sp, color = Color.White)
                         }
+
+                        // Validation Summary Button
+//                        if (showValidationErrors && !isFormValid) {
+//                            Button(
+//                                onClick = {
+//                                    validateField("customerID", customerID)
+//                                    validateField("name", name)
+//                                    validateField("dateOfBirth", dateOfBirth.text)
+//                                    validateField("phoneNumber", phoneNumber)
+//                                    validateField("image", "", selectedImageBytes)
+//                                },
+//                                modifier = Modifier.fillMaxWidth(),
+//                                shape = RoundedCornerShape(12.dp),
+//                                colors = ButtonDefaults.buttonColors(
+//                                    containerColor = Color(0xFFFF9800)
+//                                )
+//                            ) {
+//                                Text("🔍 Kiểm tra lỗi", fontSize = 14.sp, color = Color.White)
+//                            }
+//                        }
                     }
                 }
             }
 
-            // Status với màu nhẹ nhàng
+            // Status
             if (writeStatus.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(
