@@ -1,165 +1,180 @@
 package org.example.project
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBackIosNew
-import androidx.compose.material.icons.rounded.Cake
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Phone
-import androidx.compose.material.icons.rounded.PhoneAndroid
-import androidx.compose.material.icons.rounded.PhotoCamera
-import androidx.compose.material.icons.rounded.Tag
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toComposeImageBitmap
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import org.example.project.screen.ChangePinScreen
 import org.example.project.screen.ConnectScreen
-import org.example.project.screen.CustomerViewScreen
-import org.example.project.screen.FloatingBubbles
-import org.example.project.screen.MainMenuScreen
-import org.example.project.screen.PinEntryScreen
-import org.example.project.screen.WriteDataScreen
-import smardcard.composeapp.generated.resources.Res
-import smardcard.composeapp.generated.resources.compose_multiplatform
-import javax.smartcardio.*
-import kotlin.concurrent.thread
-import java.awt.Image
-import java.awt.image.BufferedImage
-import java.io.ByteArrayOutputStream
-import javax.imageio.ImageIO
-
-
+import org.example.project. screen.PinEntryScreen
+import org. example.project.screen.RoleSelectionScreen
+import org.example.project.screen.UserRole
+import org.example.project.screen.user.UserMainMenuScreen
+import org.example. project.screen.user.UserViewInfoScreen
+import org.example.project.screen.user.UserBalanceScreen
+import org.example.project.screen.user.UserGameListScreen
+import org.example.project.screen.user.UserChangePinScreen
+import org.example.project.screen.admin.AdminMainMenuScreen
+import org.example.project.screen.admin.AdminWriteInfoScreen
+import org.example.project.screen.admin.AdminViewCustomerScreen
+import org.example.project. screen.admin.AdminRechargeScreen
+import org.example.project.screen.admin.AdminGameManagementScreen
+import org.example.project.screen.admin.AdminSettingsScreen
 
 enum class AppScreen {
     CONNECT,
+    ROLE_SELECTION,
     PIN_ENTRY,
-    MAIN_MENU,
-    WriteDataScreen,
-    CustomerDataScreen,
-    ChangePinScreen
+
+    // User screens
+    USER_MAIN,
+    USER_VIEW_INFO,
+    USER_BALANCE,
+    USER_GAMES,
+    USER_CHANGE_PIN,
+
+    // Admin screens
+    ADMIN_MAIN,
+    ADMIN_WRITE_INFO,
+    ADMIN_VIEW_CUSTOMER,
+    ADMIN_RECHARGE,
+    ADMIN_GAME_MANAGEMENT,
+    ADMIN_SETTINGS
 }
 
 @Composable
 fun SmartCardApp() {
     var currentScreen by remember { mutableStateOf(AppScreen.CONNECT) }
+    var selectedRole by remember { mutableStateOf<UserRole?>(null) }
     val smartCardManager = remember { SmartCardManager() }
+
     when (currentScreen) {
+        // ===== COMMON SCREENS =====
         AppScreen.CONNECT -> {
             ConnectScreen(
-                onCardConnected = { currentScreen = AppScreen.PIN_ENTRY },
+                onCardConnected = {
+                    currentScreen = AppScreen. ROLE_SELECTION
+                },
                 smartCardManager = smartCardManager
+            )
+        }
+
+        AppScreen.ROLE_SELECTION -> {
+            RoleSelectionScreen(
+                onRoleSelected = { role ->
+                    selectedRole = role
+                    currentScreen = AppScreen.PIN_ENTRY
+                },
+                onBack = {
+                    smartCardManager.disconnect()
+                    currentScreen = AppScreen.CONNECT
+                }
             )
         }
 
         AppScreen.PIN_ENTRY -> {
             PinEntryScreen(
-                onPinVerified = { currentScreen = AppScreen.MAIN_MENU },
-                smartCardManager = smartCardManager
+                smartCardManager = smartCardManager,
+                onPinVerified = {
+                    currentScreen = when(selectedRole) {
+                        UserRole.USER -> AppScreen.USER_MAIN
+                        UserRole.ADMIN -> AppScreen.ADMIN_MAIN
+                        else -> AppScreen.CONNECT
+                    }
+                }
             )
         }
 
-        AppScreen.MAIN_MENU -> {
-            MainMenuScreen(
+        // ===== USER SCREENS =====
+        AppScreen.USER_MAIN -> {
+            UserMainMenuScreen(
+                smartCardManager = smartCardManager,
+                onNavigateViewInfo = { currentScreen = AppScreen.USER_VIEW_INFO },
+                onNavigateBalance = { currentScreen = AppScreen. USER_BALANCE },
+                onNavigateGames = { currentScreen = AppScreen.USER_GAMES },
+                onNavigateChangePin = { currentScreen = AppScreen. USER_CHANGE_PIN },
                 onDisconnect = {
                     smartCardManager.disconnect()
+                    selectedRole = null
                     currentScreen = AppScreen.CONNECT
-                },
-                onNavigateWriteInfo = {
-                    currentScreen = AppScreen.WriteDataScreen
-                },
-                onNavigateSettings = {
-
-                },
-                onNavigateReadInfo = {
-                    currentScreen = AppScreen.CustomerDataScreen
-                },
-
-                onNavigateChangePin={
-                    currentScreen = AppScreen.ChangePinScreen
-                },
-                smartCardManager = smartCardManager
-
+                }
             )
         }
-        AppScreen.WriteDataScreen -> {
-            WriteDataScreen(
+
+        AppScreen.USER_VIEW_INFO -> {
+            UserViewInfoScreen(
                 smartCardManager = smartCardManager,
-                onBack = { currentScreen = AppScreen.MAIN_MENU }
+                onBack = { currentScreen = AppScreen.USER_MAIN }
             )
         }
-        AppScreen.CustomerDataScreen -> {
-            CustomerViewScreen(
+
+        AppScreen. USER_BALANCE -> {
+            UserBalanceScreen(
                 smartCardManager = smartCardManager,
-                onBack = { currentScreen = AppScreen.MAIN_MENU }
+                onBack = { currentScreen = AppScreen.USER_MAIN }
             )
         }
-        AppScreen.ChangePinScreen -> {
-             ChangePinScreen(
-                 smartCardManager = smartCardManager,
-                 onBack = { currentScreen = AppScreen.MAIN_MENU }
-             )
+
+        AppScreen.USER_GAMES -> {
+            UserGameListScreen(
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = AppScreen.USER_MAIN }
+            )
+        }
+
+        AppScreen.USER_CHANGE_PIN -> {
+            UserChangePinScreen(
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = AppScreen.USER_MAIN }
+            )
+        }
+
+        // ===== ADMIN SCREENS =====
+        AppScreen. ADMIN_MAIN -> {
+            AdminMainMenuScreen(
+                smartCardManager = smartCardManager,
+                onNavigateWriteInfo = { currentScreen = AppScreen.ADMIN_WRITE_INFO },
+                onNavigateRecharge = { currentScreen = AppScreen.ADMIN_RECHARGE },
+                onNavigateGameManagement = { currentScreen = AppScreen. ADMIN_GAME_MANAGEMENT },
+                onNavigateViewCustomer = { currentScreen = AppScreen.ADMIN_VIEW_CUSTOMER },
+                onNavigateSettings = { currentScreen = AppScreen. ADMIN_SETTINGS },
+                onDisconnect = {
+                    smartCardManager.disconnect()
+                    selectedRole = null
+                    currentScreen = AppScreen.CONNECT
+                }
+            )
+        }
+
+        AppScreen. ADMIN_WRITE_INFO -> {
+            AdminWriteInfoScreen(
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = AppScreen.ADMIN_MAIN }
+            )
+        }
+
+        AppScreen.ADMIN_VIEW_CUSTOMER -> {
+            AdminViewCustomerScreen(
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = AppScreen. ADMIN_MAIN }
+            )
+        }
+
+        AppScreen.ADMIN_RECHARGE -> {
+            AdminRechargeScreen(
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = AppScreen.ADMIN_MAIN }
+            )
+        }
+
+        AppScreen.ADMIN_GAME_MANAGEMENT -> {
+            AdminGameManagementScreen(
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = AppScreen.ADMIN_MAIN }
+            )
+        }
+
+        AppScreen. ADMIN_SETTINGS -> {
+            AdminSettingsScreen(
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = AppScreen.ADMIN_MAIN }
+            )
         }
     }
 }
-
-
-
-

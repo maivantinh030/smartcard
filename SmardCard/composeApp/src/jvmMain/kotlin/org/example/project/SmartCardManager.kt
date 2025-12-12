@@ -174,6 +174,29 @@ class SmartCardManager {
             Triple(-1, false, false)
         }
     }
+
+    fun resetPinCounter(): Boolean {
+        return try {
+            val cmd = byteArrayOf(0x80. toByte(), 0x42, 0x00, 0x00, 0x00)
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("PIN counter reset successfully")
+                    true
+                }
+                else -> {
+                    println("Failed to reset PIN counter:  SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error resetting PIN counter: ${e.message}")
+            false
+        }
+    }
+
     fun writeCustomerInfo(customerID:String,name:String, dateOfBirth:String,phoneNumber:String,cardType:String): Boolean {
         return try{
             val data = ByteArray(95)
@@ -372,6 +395,347 @@ class SmartCardManager {
             val sw2 = response[response.size - 1].toInt() and 0xFF
             (sw1 shl 8) or sw2
         } else -1
+    }
+
+    // ==================== BALANCE MANAGEMENT ====================
+
+    /**
+     * Nạp tiền vào thẻ
+     */
+    fun rechargeBalance(amount: Int): Boolean {
+        return try {
+            if (amount <= 0 || amount > 30000) {
+                println("Invalid amount: $amount")
+                return false
+            }
+
+            val amountBytes = byteArrayOf(
+                (amount shr 8).toByte(),
+                (amount and 0xFF).toByte()
+            )
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x50, 0x00, 0x00, 0x02) + amountBytes
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Recharge successful:  $amount VNĐ")
+                    true
+                }
+                else -> {
+                    println("Recharge failed: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error recharging balance: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Kiểm tra số dư
+     */
+    fun checkBalance(): Int {
+        return try {
+            val cmd = byteArrayOf(0x80.toByte(), 0x51, 0x00, 0x00, 0x02)
+            val response = sendCommand(cmd) ?: return -1
+
+            val sw = getStatusWord(response)
+            if (sw == 0x9000 && response.size >= 4) {
+                val data = response.dropLast(2).toByteArray()
+                val balance = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
+                println("Current balance: $balance VNĐ")
+                balance
+            } else {
+                println("Failed to check balance: SW=${sw. toString(16)}")
+                -1
+            }
+        } catch (e: Exception) {
+            println("Error checking balance: ${e.message}")
+            -1
+        }
+    }
+
+    /**
+     * Thanh toán
+     */
+    fun makePayment(amount: Int): Boolean {
+        return try {
+            if (amount <= 0) {
+                println("Invalid payment amount: $amount")
+                return false
+            }
+
+            val amountBytes = byteArrayOf(
+                (amount shr 8).toByte(),
+                (amount and 0xFF).toByte()
+            )
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x52, 0x00, 0x00, 0x02) + amountBytes
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Payment successful: $amount VNĐ")
+                    true
+                }
+                0x6901 -> {
+                    println("Insufficient balance")
+                    false
+                }
+                else -> {
+                    println("Payment failed: SW=${sw. toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error making payment: ${e.message}")
+            false
+        }
+    }
+
+    // ==================== GAME MANAGEMENT ====================
+
+    /**
+     * Đọc danh sách game
+     */
+    fun readGames(): List<GameEntry> {
+        return try {
+            val cmd = byteArrayOf(0x80.toByte(), 0x62, 0x00, 0x00, 0x00)
+            val response = sendCommand(cmd) ?: return emptyList()
+
+            val sw = getStatusWord(response)
+            if (sw != 0x9000) {
+                println("Failed to read games:  SW=${sw.toString(16)}")
+                return emptyList()
+            }
+
+            val data = response.dropLast(2).toByteArray()
+            if (data.size < 2) {
+                return emptyList()
+            }
+
+            // Parse game count
+            val gameCount = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
+
+            if (gameCount == 0) {
+                println("No games found")
+                return emptyList()
+            }
+
+            val games = mutableListOf<GameEntry>()
+            var pos = 2
+
+            for (i in 0 until gameCount) {
+                if (pos + 3 > data.size) break
+
+                val tickets = data[pos].toInt() and 0xFF
+                val gameCodeHigh = data[pos + 1]. toInt() and 0xFF
+                val gameCodeLow = data[pos + 2].toInt() and 0xFF
+                val gameCode = (gameCodeHigh shl 8) or gameCodeLow
+
+                games.add(GameEntry(gameCode, tickets))
+                pos += 3
+            }
+
+            println("Read ${games.size} games")
+            games
+
+        } catch (e: Exception) {
+            println("Error reading games: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * Thêm hoặc tăng vé game
+     */
+    fun addOrIncreaseTickets(gameCode: Int, tickets:  Int): Boolean {
+        return try {
+            if (tickets <= 0 || tickets > 255) {
+                println("Invalid tickets amount: $tickets")
+                return false
+            }
+
+            val data = byteArrayOf(
+                tickets.toByte(),
+                (gameCode shr 8).toByte(),
+                (gameCode and 0xFF).toByte()
+            )
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x60, 0x00, 0x00, 0x03) + data
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Added/Increased $tickets tickets for game $gameCode")
+                    true
+                }
+                else -> {
+                    println("Failed to add tickets: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error adding tickets: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Giảm vé game (khi sử dụng)
+     */
+    fun decreaseGameTickets(gameCode: Int, tickets: Int): Boolean {
+        return try {
+            if (tickets <= 0 || tickets > 255) {
+                println("Invalid tickets amount: $tickets")
+                return false
+            }
+
+            val data = byteArrayOf(
+                (gameCode shr 8).toByte(),
+                (gameCode and 0xFF).toByte(),
+                tickets.toByte()
+            )
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x61, 0x00, 0x00, 0x03) + data
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Decreased $tickets tickets for game $gameCode")
+                    true
+                }
+                0x6901 -> {
+                    println("Insufficient tickets")
+                    false
+                }
+                else -> {
+                    println("Failed to decrease tickets: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error decreasing tickets: ${e. message}")
+            false
+        }
+    }
+
+    /**
+     * Cập nhật số vé game (set absolute value)
+     */
+    fun updateGameTickets(gameCode: Int, newTickets: Int): Boolean {
+        return try {
+            if (newTickets < 0 || newTickets > 255) {
+                println("Invalid tickets amount: $newTickets")
+                return false
+            }
+
+            val data = byteArrayOf(
+                (gameCode shr 8).toByte(),
+                (gameCode and 0xFF).toByte(),
+                newTickets.toByte()
+            )
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x63, 0x00, 0x00, 0x03) + data
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Updated game $gameCode to $newTickets tickets")
+                    true
+                }
+                else -> {
+                    println("Failed to update tickets: SW=${sw. toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error updating tickets: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Tìm game theo mã
+     */
+    fun findGame(gameCode: Int): GameEntry? {
+        return try {
+            val data = byteArrayOf(
+                (gameCode shr 8).toByte(),
+                (gameCode and 0xFF).toByte()
+            )
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x64, 0x00, 0x00, 0x02) + data
+            val response = sendCommand(cmd) ?: return null
+
+            val sw = getStatusWord(response)
+            if (sw != 0x9000) {
+                println("Failed to find game: SW=${sw.toString(16)}")
+                return null
+            }
+
+            val responseData = response.dropLast(2).toByteArray()
+            if (responseData.isEmpty() || responseData[0]. toInt() == 0) {
+                println("Game $gameCode not found")
+                return null
+            }
+
+            if (responseData.size >= 4) {
+                val tickets = responseData[1].toInt() and 0xFF
+                val foundGameCodeHigh = responseData[2]. toInt() and 0xFF
+                val foundGameCodeLow = responseData[3].toInt() and 0xFF
+                val foundGameCode = (foundGameCodeHigh shl 8) or foundGameCodeLow
+
+                println("Found game $foundGameCode with $tickets tickets")
+                GameEntry(foundGameCode, tickets)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            println("Error finding game: ${e. message}")
+            null
+        }
+    }
+
+    /**
+     * Xóa game
+     */
+    fun removeGame(gameCode: Int): Boolean {
+        return try {
+            val data = byteArrayOf(
+                (gameCode shr 8).toByte(),
+                (gameCode and 0xFF).toByte()
+            )
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x65, 0x00, 0x00, 0x02) + data
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Removed game $gameCode")
+                    true
+                }
+                0x6A82 -> {
+                    println("Game $gameCode not found")
+                    false
+                }
+                else -> {
+                    println("Failed to remove game: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error removing game: ${e.message}")
+            false
+        }
     }
 
 }
