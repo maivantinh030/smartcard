@@ -1,29 +1,29 @@
 package org.example.project.screen.user
 
-import androidx.compose. foundation. background
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation. shape.RoundedCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui. graphics.Brush
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text. font.FontWeight
-import androidx. compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui. unit.sp
 import org.example.project.SmartCardManager
-import org.example.project. screen.FloatingBubbles
+import org.example.project.screen.FloatingBubbles
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserMainMenuScreen(
     smartCardManager: SmartCardManager,
     onNavigateViewInfo: () -> Unit,
-    onNavigateBalance: () -> Unit,
+    onNavigateBuyTickets: () -> Unit,
     onNavigateGames: () -> Unit,
     onNavigateChangePin: () -> Unit,
     onDisconnect: () -> Unit
@@ -38,16 +38,16 @@ fun UserMainMenuScreen(
                 onClick = onNavigateViewInfo
             ),
             UserMenuOption(
-                title = "Số dư & Thanh toán",
-                emoji = "💰",
-                description = "Kiểm tra số dư và thanh toán",
+                title = "Mua vé game",  // ✅ ĐỔI TÊN
+                emoji = "🎟️",          // ✅ ĐỔI ICON
+                description = "Mua vé chơi trò",  // ✅ ĐỔI MÔ TẢ
                 gradientColors = listOf(Color(0xFF81C784), Color(0xFFA5D6A7)),
-                onClick = onNavigateBalance
+                onClick = onNavigateBuyTickets  // ✅ ĐỔI CALLBACK
             ),
             UserMenuOption(
-                title = "Vé chơi game",
-                emoji = "🎮",
-                description = "Xem và sử dụng vé game",
+                title = "Vé của tôi",  // ✅ ĐỔI TÊN
+                emoji = "🎫",          // ✅ ĐỔI ICON
+                description = "Xem vé đã mua",  // ✅ ĐỔI MÔ TẢ
                 gradientColors = listOf(Color(0xFFBA68C8), Color(0xFFCE93D8)),
                 onClick = onNavigateGames
             ),

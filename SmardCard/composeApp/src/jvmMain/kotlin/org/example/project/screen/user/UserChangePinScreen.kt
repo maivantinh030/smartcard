@@ -1,28 +1,28 @@
-package org.example. project.screen.user
+package org.example.project.screen.user
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation. shape.RoundedCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics. Brush
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx. compose.ui.text.font. FontWeight
-import androidx.compose. ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose. ui.unit.sp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.example.project.SmartCardManager
 import org.example.project.screen.FloatingBubbles
 
-@OptIn(ExperimentalMaterial3Api:: class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserChangePinScreen(
-    smartCardManager: SmartCardManager,
+    smartCardManager:  SmartCardManager,
     onBack: () -> Unit
 ) {
     var currentPin by remember { mutableStateOf("") }
@@ -55,9 +55,9 @@ fun UserChangePinScreen(
         ) {
             // Header
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier. fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults. cardColors(containerColor = Color(0xFFFFB74D)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFB74D)),
                 elevation = CardDefaults.cardElevation(8.dp)
             ) {
                 Row(
@@ -69,11 +69,11 @@ fun UserChangePinScreen(
                     Button(
                         onClick = onBack,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color. White.copy(alpha = 0.2f),
-                            contentColor = Color.White
+                            containerColor = Color. White. copy(alpha = 0.2f),
+                            contentColor = Color. White
                         ),
                         shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier. size(48.dp),
                         contentPadding = PaddingValues(0.dp)
                     ) {
                         Text("←", fontSize = 20.sp)
@@ -85,7 +85,7 @@ fun UserChangePinScreen(
                         text = "🔐 Đổi Mã PIN",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color. White
                     )
                 }
             }
@@ -97,7 +97,7 @@ fun UserChangePinScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color. White),
-                elevation = CardDefaults.cardElevation(8.dp)
+                elevation = CardDefaults. cardElevation(8.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -116,7 +116,12 @@ fun UserChangePinScreen(
                     // Current PIN
                     OutlinedTextField(
                         value = currentPin,
-                        onValueChange = { currentPin = it },
+                        onValueChange = {
+                            if (it.all { char -> char.isDigit() } && it.length <= 8) {
+                                currentPin = it
+                                status = ""
+                            }
+                        },
                         label = { Text("Mã PIN hiện tại") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -126,7 +131,10 @@ fun UserChangePinScreen(
                             focusedBorderColor = Color(0xFFFFB74D),
                             focusedLabelColor = Color(0xFFFFB74D)
                         ),
-                        singleLine = true
+                        singleLine = true,
+                        supportingText = {
+                            Text("Nhập mã PIN hiện tại của bạn", fontSize = 12.sp, color = Color. Gray)
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -134,7 +142,12 @@ fun UserChangePinScreen(
                     // New PIN
                     OutlinedTextField(
                         value = newPin,
-                        onValueChange = { newPin = it },
+                        onValueChange = {
+                            if (it. all { char -> char.isDigit() } && it.length <= 8) {
+                                newPin = it
+                                status = ""
+                            }
+                        },
                         label = { Text("Mã PIN mới") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -144,7 +157,15 @@ fun UserChangePinScreen(
                             focusedBorderColor = Color(0xFFFFB74D),
                             focusedLabelColor = Color(0xFFFFB74D)
                         ),
-                        singleLine = true
+                        singleLine = true,
+                        isError = newPin.isNotEmpty() && newPin == currentPin,
+                        supportingText = {
+                            if (newPin.isNotEmpty() && newPin == currentPin) {
+                                Text("⚠️ PIN mới phải khác PIN cũ", fontSize = 12.sp, color = Color(0xFFE53935))
+                            } else {
+                                Text("4-8 ký tự số", fontSize = 12.sp, color = Color. Gray)
+                            }
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -152,7 +173,12 @@ fun UserChangePinScreen(
                     // Confirm PIN
                     OutlinedTextField(
                         value = confirmPin,
-                        onValueChange = { confirmPin = it },
+                        onValueChange = {
+                            if (it.all { char -> char.isDigit() } && it.length <= 8) {
+                                confirmPin = it
+                                status = ""
+                            }
+                        },
                         label = { Text("Xác nhận PIN mới") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
@@ -162,7 +188,17 @@ fun UserChangePinScreen(
                             focusedBorderColor = Color(0xFFFFB74D),
                             focusedLabelColor = Color(0xFFFFB74D)
                         ),
-                        singleLine = true
+                        singleLine = true,
+                        isError = confirmPin. isNotEmpty() && confirmPin != newPin,
+                        supportingText = {
+                            if (confirmPin.isNotEmpty() && confirmPin != newPin) {
+                                Text("⚠️ PIN không khớp", fontSize = 12.sp, color = Color(0xFFE53935))
+                            } else if (confirmPin.isNotEmpty() && confirmPin == newPin) {
+                                Text("✅ PIN khớp", fontSize = 12.sp, color = Color(0xFF4CAF50))
+                            } else {
+                                Text("Nhập lại PIN mới", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -171,22 +207,42 @@ fun UserChangePinScreen(
                     Button(
                         onClick = {
                             scope.launch {
+                                // ✅ KIỂM TRA 1: PIN mới không được trùng PIN cũ
+                                if (newPin == currentPin) {
+                                    status = "❌ Mã PIN mới phải khác mã PIN cũ!"
+                                    return@launch
+                                }
+
+                                // ✅ KIỂM TRA 2: PIN mới và xác nhận phải khớp
                                 if (newPin != confirmPin) {
                                     status = "❌ Mã PIN mới không khớp!"
                                     return@launch
                                 }
+
+                                // ✅ KIỂM TRA 3: Độ dài PIN
                                 if (newPin.length < 4 || newPin.length > 8) {
                                     status = "❌ PIN phải từ 4-8 ký tự!"
                                     return@launch
                                 }
 
+                                // ✅ KIỂM TRA 4: PIN chỉ chứa số
+                                if (!newPin.all { it.isDigit() }) {
+                                    status = "❌ PIN chỉ được chứa số!"
+                                    return@launch
+                                }
+
                                 isChanging = true
                                 try {
-                                    smartCardManager.changePIN(currentPin, newPin)
-                                    status = "✅ Đổi PIN thành công!"
-                                    currentPin = ""
-                                    newPin = ""
-                                    confirmPin = ""
+                                    val success = smartCardManager.changePIN(currentPin, newPin)
+
+                                    if (success) {
+                                        status = "✅ Đổi PIN thành công!  Vui lòng nhớ PIN mới:  $newPin"
+                                        currentPin = ""
+                                        newPin = ""
+                                        confirmPin = ""
+                                    } else {
+                                        status = "❌ Đổi PIN thất bại!  Kiểm tra lại PIN cũ."
+                                    }
                                 } catch (e: Exception) {
                                     status = "❌ Lỗi: ${e.message}"
                                 } finally {
@@ -195,11 +251,17 @@ fun UserChangePinScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = ! isChanging && currentPin.isNotEmpty() &&
-                                newPin.isNotEmpty() && confirmPin.isNotEmpty(),
+                        enabled = !isChanging &&
+                                currentPin.isNotEmpty() &&
+                                newPin.isNotEmpty() &&
+                                confirmPin.isNotEmpty() &&
+                                newPin == confirmPin &&
+                                newPin != currentPin &&
+                                newPin.length >= 4,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFFB74D)
+                            containerColor = Color(0xFFFFB74D),
+                            disabledContainerColor = Color(0xFFE0E0E0)
                         )
                     ) {
                         if (isChanging) {
@@ -215,12 +277,45 @@ fun UserChangePinScreen(
                             fontSize = 16.sp
                         )
                     }
+
+                    // Validation hints
+                    if (currentPin.isNotEmpty() || newPin.isNotEmpty() || confirmPin.isNotEmpty()) {
+                        Spacer(modifier = Modifier. height(16.dp))
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFF3E5F5)
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "📋 Yêu cầu:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF7B1FA2)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                ValidationItem(
+                                    text = "PIN mới khác PIN cũ",
+                                    isValid = newPin. isEmpty() || newPin != currentPin
+                                )
+                                ValidationItem(
+                                    text = "PIN có 4-8 ký tự số",
+                                    isValid = newPin.isEmpty() || (newPin.length >= 4 && newPin.length <= 8 && newPin.all { it. isDigit() })
+                                )
+                                ValidationItem(
+                                    text = "Xác nhận PIN khớp",
+                                    isValid = confirmPin.isEmpty() || confirmPin == newPin
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
             // Status message
-            if (status. isNotEmpty()) {
-                Spacer(modifier = Modifier. height(16.dp))
+            if (status.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -240,5 +335,25 @@ fun UserChangePinScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ValidationItem(text: String, isValid: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 2.dp)
+    ) {
+        Text(
+            text = if (isValid) "✓" else "○",
+            fontSize = 14.sp,
+            color = if (isValid) Color(0xFF4CAF50) else Color.Gray
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            color = if (isValid) Color(0xFF4CAF50) else Color.Gray
+        )
     }
 }

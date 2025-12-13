@@ -624,4 +624,3 @@ public class CustomerCardApplet extends Applet
 	}
 	
 }
-

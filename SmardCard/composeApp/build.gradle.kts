@@ -1,6 +1,6 @@
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile // Import cần thiết cho tasks.withType
+import org.jetbrains.compose. desktop.application.dsl. TargetFormat
+import org.jetbrains.kotlin.gradle. dsl.JvmTarget
+import org.jetbrains.kotlin. gradle.tasks.KotlinCompile
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -9,14 +9,10 @@ plugins {
     alias(libs.plugins.composeHotReload)
 }
 
-// GỘP TẤT CẢ VÀO MỘT KHỐI kotlin
 kotlin {
-    // Đảm bảo chỉ định toolchain
     jvmToolchain(21)
 
-    jvm() { // Đặt tên cho JVM target nếu bạn muốn
-        // Cấu hình jvm() và sourceSets ở đây
-    }
+    jvm()
 
     sourceSets {
         commonMain.dependencies {
@@ -26,9 +22,9 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
-            implementation(libs.androidx.lifecycle.viewmodelCompose)
-            implementation(libs.androidx.lifecycle.runtimeCompose)
-            implementation(compose.materialIconsExtended)  // ← Icons extended
+            implementation(libs.androidx.lifecycle. viewmodelCompose)
+            implementation(libs.androidx.lifecycle. runtimeCompose)
+            implementation(compose.materialIconsExtended)
             implementation(compose.material3AdaptiveNavigationSuite)
         }
         commonTest.dependencies {
@@ -41,7 +37,7 @@ kotlin {
     }
 }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+tasks.withType<KotlinCompile> {
     compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
     compilerOptions.freeCompilerArgs.addAll(
         listOf(
@@ -50,20 +46,51 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     )
 }
 
-
 compose.desktop {
     application {
-        mainClass = "org.example.project.MainKt"
+        mainClass = "org.example.project.MainUserKt" // ✅ Đổi thành MainUserKt
 
-        // Cấu hình Runtime (Fix Run Time)
         jvmArgs += listOf("--add-modules", "java.smartcardio")
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            targetFormats(TargetFormat. Dmg, TargetFormat. Msi, TargetFormat.Deb)
             packageName = "org.example.project"
             packageVersion = "1.0.0"
-            // Cấu hình Distribution (Fix Packaging)
             modules("java.smartcardio")
         }
     }
+}
+
+// ✅ THÊM 2 TASKS NÀY VÀO CUỐI FILE
+
+// ✅ THAY 2 TASKS NÀY (từ dòng 66)
+
+tasks.register<JavaExec>("runUser") {
+    group = "application"
+    description = "Run User Application"
+    mainClass.set("org.example.project.MainUserKt")
+
+    classpath = files(
+        tasks.named("jvmJar").get().outputs.files,
+        configurations.named("jvmRuntimeClasspath").get()
+    )
+
+    jvmArgs("--add-modules", "java. smartcardio")
+
+    dependsOn("jvmJar")
+}
+
+tasks.register<JavaExec>("runAdmin") {
+    group = "application"
+    description = "Run Admin Application"
+    mainClass.set("org.example.project.MainAdminKt")
+
+    classpath = files(
+        tasks.named("jvmJar").get().outputs.files,
+        configurations.named("jvmRuntimeClasspath").get()
+    )
+
+    jvmArgs("--add-modules", "java.smartcardio")
+
+    dependsOn("jvmJar")
 }
