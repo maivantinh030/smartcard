@@ -50,14 +50,14 @@ fun UserBuyTicketsScreen(
     var cart by remember {
         mutableStateOf(
             listOf(
-                GameTicket(1001, "Tàu Lượn", "🎢", 100, listOf(Color(0xFFFF6B6B), Color(0xFFFF8E8E))),
-                GameTicket(1002, "Đu Quay", "🎡", 50, listOf(Color(0xFF4ECDC4), Color(0xFF6EE5DB))),
-                GameTicket(1003, "Nhà Phao", "🏰", 80, listOf(Color(0xFFFFBE0B), Color(0xFFFFD60A))),
-                GameTicket(1004, "Tàu Cướp Biển", "🏴‍☠️", 120, listOf(Color(0xFF8B5CF6), Color(0xFFA78BFA))),
-                GameTicket(1005, "Bể Bơi", "🏊", 60, listOf(Color(0xFF3B82F6), Color(0xFF60A5FA))),
-                GameTicket(1006, "Con Lắc 360°", "🎪", 150, listOf(Color(0xFFEC4899), Color(0xFFF472B6))),
-                GameTicket(1007, "Nhà Ma", "👻", 90, listOf(Color(0xFF6366F1), Color(0xFF818CF8))),
-                GameTicket(1008, "Đua Xe", "🏎️", 110, listOf(Color(0xFFEF4444), Color(0xFFF87171)))
+                GameTicket(1001, "Tàu Lượn", "🎢", 1000, listOf(Color(0xFFFF6B6B), Color(0xFFFF8E8E))),
+                GameTicket(1002, "Đu Quay", "🎡", 5000, listOf(Color(0xFF4ECDC4), Color(0xFF6EE5DB))),
+                GameTicket(1003, "Nhà Phao", "🏰", 8000, listOf(Color(0xFFFFBE0B), Color(0xFFFFD60A))),
+                GameTicket(1004, "Tàu Cướp Biển", "🏴‍☠️", 1200, listOf(Color(0xFF8B5CF6), Color(0xFFA78BFA))),
+                GameTicket(1005, "Bể Bơi", "🏊", 6000, listOf(Color(0xFF3B82F6), Color(0xFF60A5FA))),
+                GameTicket(1006, "Con Lắc 360°", "🎪", 1500, listOf(Color(0xFFEC4899), Color(0xFFF472B6))),
+                GameTicket(1007, "Nhà Ma", "👻", 9000, listOf(Color(0xFF6366F1), Color(0xFF818CF8))),
+                GameTicket(1008, "Đua Xe", "🏎️", 1100, listOf(Color(0xFFEF4444), Color(0xFFF87171)))
             )
         )
     }
@@ -66,7 +66,7 @@ fun UserBuyTicketsScreen(
 
     fun loadBalance() {
         scope.launch {
-            val bal = smartCardManager.checkBalance()
+            val bal = smartCardManager.checkBalance()*1000
             balance = if (bal >= 0) bal else 0
         }
     }
@@ -489,7 +489,7 @@ fun UserBuyTicketsScreen(
                             scope.launch {
                                 try {
                                     println("💳 Thanh toán $totalAmount VNĐ...")
-                                    val paymentSuccess = smartCardManager.makePayment(totalAmount)
+                                    val paymentSuccess = smartCardManager.makePayment(totalAmount/1000)
 
                                     if (! paymentSuccess) {
                                         status = "❌ Thanh toán thất bại!  Không đủ số dư."
