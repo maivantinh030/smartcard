@@ -41,3 +41,7 @@ enum class CardType(val displayName: String, val value: String) {
     BACH_KIM("Thẻ bạch kim", "BACHKIM"),
     KIM_CUONG("Thẻ kim cương", "KIMCUONG")
 }
+data class GameEntry(
+    val gameCode:  Int,
+    val tickets: Int
+)

@@ -130,4 +130,5 @@ public class CustomerCardApplet extends Applet {
         model.decryptAll(cryptoMgr);
         model.setDataReady(true);
     }
+
 }
