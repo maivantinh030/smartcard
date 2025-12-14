@@ -5,13 +5,9 @@
 </PkgNodes>
 </ExpandNodes>
 <FileNodes>
-<fnode>
-<fileName>C:\JavaCardKit\SDK\Tools\JCIDE\apis\jc222\javacard\framework\ISO7816.java</fileName>
-<line>48</line>
-</fnode>
 <ActiveFile>
 <fileName>src\ParkCard\CustomerCardApplet.java</fileName>
-<line>371</line>
+<line>55</line>
 </ActiveFile>
 </FileNodes>
 </StateInfo>
