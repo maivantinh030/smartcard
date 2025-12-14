@@ -685,7 +685,7 @@ class SmartCardManager {
 
     fun readGames(): List<GameEntry> {
         return try {
-            val cmd = byteArrayOf(0x80.toByte(), 0x62, 0x00, 0x00, 0x00)
+            val cmd = byteArrayOf(0x80.toByte(), 0x82.toByte(), 0x00, 0x00, 0x00)
             val response = sendCommand(cmd) ?: return emptyList()
 
             val sw = getStatusWord(response)
@@ -743,7 +743,7 @@ class SmartCardManager {
                 (gameCode and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x60, 0x00, 0x00, 0x03) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x80.toByte(), 0x00, 0x00, 0x03) + data
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -776,7 +776,7 @@ class SmartCardManager {
                 tickets.toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x61, 0x00, 0x00, 0x03) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x81.toByte(), 0x00, 0x00, 0x03) + data
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -813,7 +813,7 @@ class SmartCardManager {
                 newTickets.toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x63, 0x00, 0x00, 0x03) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x83.toByte(), 0x00, 0x00, 0x03) + data
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -840,7 +840,7 @@ class SmartCardManager {
                 (gameCode and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x64, 0x00, 0x00, 0x02) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x84.toByte(), 0x00, 0x00, 0x02) + data
             val response = sendCommand(cmd) ?: return null
 
             val sw = getStatusWord(response)
@@ -879,7 +879,7 @@ class SmartCardManager {
                 (gameCode and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x65, 0x00, 0x00, 0x02) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x85.toByte(), 0x00, 0x00, 0x02) + data
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)

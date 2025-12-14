@@ -17,8 +17,8 @@ public class CustomerCardApplet extends Applet
     private short photoWriteOffset;
     
     private short balance;
-    private static final short MAX_GAMES = 50; // Ti ða 50 tr chõi
-    private static final short GAME_ENTRY_SIZE = 3; // 1 byte vé + 2 bytes m game
+    private static final short MAX_GAMES = 50; // Ti ï¿½a 50 tr chï¿½i
+    private static final short GAME_ENTRY_SIZE = 3; // 1 byte vï¿½ + 2 bytes m game
     private byte[] gameList;
     private short gameCount;
 
@@ -40,12 +40,12 @@ public class CustomerCardApplet extends Applet
 	private static final byte INS_CHECK_BALANCE = (byte) 0x51;
 	private static final byte INS_MAKE_PAYMENT = (byte) 0x52;
 		// Game management instruction codes
-	private static final byte INS_ADD_OR_INCREASE_TICKETS = (byte) 0x60;
-	private static final byte INS_DECREASE_GAME_TICKETS = (byte) 0x61;
-	private static final byte INS_READ_GAMES = (byte) 0x62;
-	private static final byte INS_UPDATE_GAME_TICKETS = (byte) 0x63;
-	private static final byte INS_FIND_GAME = (byte) 0x64;
-	private static final byte INS_REMOVE_GAME = (byte) 0x65;
+	private static final byte INS_ADD_OR_INCREASE_TICKETS = (byte) 0x80;
+	private static final byte INS_DECREASE_GAME_TICKETS = (byte) 0x81;
+	private static final byte INS_READ_GAMES = (byte) 0x82;
+	private static final byte INS_UPDATE_GAME_TICKETS = (byte) 0x83;
+	private static final byte INS_FIND_GAME = (byte) 0x84;
+	private static final byte INS_REMOVE_GAME = (byte) 0x85;
 	
     
     private static final short SW_AUTHENTICATION_METHOD_BLOCKED = (short)0x6983;
@@ -143,12 +143,12 @@ public class CustomerCardApplet extends Applet
 			case INS_RECHARGE_BALANCE:
 				rechargeBalance(apdu);
 				break;
-			// Kim tra s dý
+			// Kim tra s dï¿½
 			case INS_CHECK_BALANCE:
 				checkBalance(apdu);
 				break;
 
-			// Thanh toán
+			// Thanh toï¿½n
 			case INS_MAKE_PAYMENT:
 				makePayment(apdu);
 				break;
@@ -284,7 +284,7 @@ public class CustomerCardApplet extends Applet
         Util.arrayFillNonAtomic(customerPhoto, (short)0, MAX_PHOTO_SIZE, (byte)0x00);
     }
     private void finishPhotoWrite(APDU apdu) {
-    // Finalize photo - ðm bo photoLength ðýc set ðúng
+    // Finalize photo - ï¿½m bo photoLength ï¿½ï¿½c set ï¿½ï¿½ng
     photoLength = photoWriteOffset;
     photoWriteOffset = 0;  // Reset for next upload
 }
@@ -366,21 +366,21 @@ public class CustomerCardApplet extends Applet
 		}
     	
 		byte[] buf = apdu.getBuffer();
-		short amount = (short)((buf[ISO7816.OFFSET_CDATA] << 8) | (buf[ISO7816.OFFSET_CDATA + 1] & 0xFF)); // Ðc khon tin
+		short amount = (short)((buf[ISO7816.OFFSET_CDATA] << 8) | (buf[ISO7816.OFFSET_CDATA + 1] & 0xFF)); // ï¿½c khon tin
 
 		if (amount <= 0 || amount > MAX_BALANCE) {
 			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
 		}
 
 		if ((short)(balance + amount) > MAX_BALANCE) {
-			ISOException.throwIt(ISO7816.SW_WARNING_STATE_UNCHANGED); // Không np ðýc do výt s dý ti ða
+			ISOException.throwIt(ISO7816.SW_WARNING_STATE_UNCHANGED); // Khï¿½ng np ï¿½ï¿½c do vï¿½t s dï¿½ ti ï¿½a
 		}
 
 		balance += amount;
 	}
 
 	/**
-	 * Phýõng thc kim tra s dý
+	 * Phï¿½ï¿½ng thc kim tra s dï¿½
 	 */
 	private void checkBalance(APDU apdu) {
 		byte[] buf = apdu.getBuffer();
@@ -394,22 +394,22 @@ public class CustomerCardApplet extends Applet
 	}
 
 	/**
-	 * Phýõng thc thanh toán
+	 * Phï¿½ï¿½ng thc thanh toï¿½n
 	 */
 	private void makePayment(APDU apdu) {
-		short lc = apdu.setIncomingAndReceive(); // Thêm dng này  
+		short lc = apdu.setIncomingAndReceive(); // Thï¿½m dng nï¿½y  
 		if (lc != 2) {
 			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
 		}
 		byte[] buf = apdu.getBuffer();
-		short amount = (short)((buf[ISO7816.OFFSET_CDATA] << 8) | (buf[ISO7816.OFFSET_CDATA + 1] & 0xFF)); // Ðc khon tin cn thanh toán
+		short amount = (short)((buf[ISO7816.OFFSET_CDATA] << 8) | (buf[ISO7816.OFFSET_CDATA + 1] & 0xFF)); // ï¿½c khon tin cn thanh toï¿½n
 
 		if (amount <= 0) {
-			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH); // S tin không hp l
+			ISOException.throwIt(ISO7816.SW_WRONG_LENGTH); // S tin khï¿½ng hp l
 		}
 
 		if (balance < amount) {
-			ISOException.throwIt(SW_INSUFFICIENT_BALANCE); // Không ð s dý ð thanh toán
+			ISOException.throwIt(SW_INSUFFICIENT_BALANCE); // Khï¿½ng ï¿½ s dï¿½ ï¿½ thanh toï¿½n
 		}
 
 		balance -= amount;
@@ -429,11 +429,11 @@ public class CustomerCardApplet extends Applet
 	        ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
 	    }
 	    
-	    // Tm xem game ð tn ti chýa
+	    // Tm xem game ï¿½ tn ti chï¿½a
 	    short index = findGameIndex(gameCode);
 	    
 	    if (index == -1) {
-	        // CASE 1: Game chýa có  thêm mi
+	        // CASE 1: Game chï¿½a cï¿½  thï¿½m mi
 	        if (gameCount >= MAX_GAMES) {
 	            ISOException.throwIt(ISO7816.SW_FILE_FULL);
 	        }
@@ -446,7 +446,7 @@ public class CustomerCardApplet extends Applet
 	        gameCount++;
 	        
 	    } else {
-	        // CASE 2: Game ð có  tãng s vé
+	        // CASE 2: Game ï¿½ cï¿½  tï¿½ng s vï¿½
 	        short offset = (short)(index * GAME_ENTRY_SIZE);
 	        byte currentTickets = gameList[offset];
 	        
@@ -460,7 +460,7 @@ public class CustomerCardApplet extends Applet
 	}
 	
 	/**
-	 * Tr s vé ca tr chõi (khi s dng)
+	 * Tr s vï¿½ ca tr chï¿½i (khi s dng)
 	 * Data format: [gameCode high][gameCode low][tickets_to_subtract]
 	 */
 	private void decreaseGameTickets(APDU apdu) {
@@ -484,21 +484,21 @@ public class CustomerCardApplet extends Applet
 	        ISOException.throwIt(ISO7816.SW_FILE_NOT_FOUND);
 	    }
 	    
-	    // Ly s vé hin ti
+	    // Ly s vï¿½ hin ti
 	    short offset = (short)(index * GAME_ENTRY_SIZE);
 	    byte currentTickets = gameList[offset];
 	    
-	    // Kim tra ð vé không
+	    // Kim tra ï¿½ vï¿½ khï¿½ng
 	    if (currentTickets < ticketsToSubtract) {
 	        ISOException.throwIt(SW_INSUFFICIENT_BALANCE);
 	    }
 	    
-	    // Tr s vé
+	    // Tr s vï¿½
 	    gameList[offset] = (byte)(currentTickets - ticketsToSubtract);
 	}
 	
 	/**
-	 * Ðc danh sách tt c tr chõi
+	 * ï¿½c danh sï¿½ch tt c tr chï¿½i
 	 * Return format: [count high][count low][game1][game2]...
 	 */
 	private void readGames(APDU apdu) {
@@ -518,7 +518,7 @@ public class CustomerCardApplet extends Applet
 	}
 	
 	/**
-	 * Cp nht s vé ca tr chõi (set absolute value)
+	 * Cp nht s vï¿½ ca tr chï¿½i (set absolute value)
 	 * Data format: [gameCode high][gameCode low][new tickets]
 	 */
 	private void updateGameTickets(APDU apdu) {
@@ -542,7 +542,7 @@ public class CustomerCardApplet extends Applet
 	}
 	
 	/**
-	 * Tm tr chõi theo m
+	 * Tm tr chï¿½i theo m
 	 * Data format: [gameCode high][gameCode low]
 	 * Return: [found][tickets][gameCode high][gameCode low]
 	 */
@@ -577,7 +577,7 @@ public class CustomerCardApplet extends Applet
 	}
 	
 	/**
-	 * Xóa tr chõi theo m
+	 * Xï¿½a tr chï¿½i theo m
 	 * Data format: [gameCode high][gameCode low]
 	 */
 	private void removeGame(APDU apdu) {
@@ -595,7 +595,7 @@ public class CustomerCardApplet extends Applet
 	        ISOException.throwIt(ISO7816.SW_FILE_NOT_FOUND);
 	    }
 	    
-	    // Dch chuyn các elements v phía trýc
+	    // Dch chuyn cï¿½c elements v phï¿½a trï¿½c
 	    short fromOffset = (short)((index + 1) * GAME_ENTRY_SIZE);
 	    short toOffset = (short)(index * GAME_ENTRY_SIZE);
 	    short remainingBytes = (short)((gameCount - index - 1) * GAME_ENTRY_SIZE);
@@ -609,7 +609,7 @@ public class CustomerCardApplet extends Applet
 	
 	/**
 	 * Tm index ca game theo m
-	 * Return -1 nu không tm thy
+	 * Return -1 nu khï¿½ng tm thy
 	 */
 	private short findGameIndex(short gameCode) {
 	    for (short i = 0; i < gameCount; i++) {

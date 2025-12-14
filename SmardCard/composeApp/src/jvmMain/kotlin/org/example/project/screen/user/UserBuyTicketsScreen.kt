@@ -1,7 +1,7 @@
 package org.example.project.screen.user
 
 import androidx.compose.animation.*
-import androidx.compose.animation. core.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,17 +21,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit. sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.example.project.SmartCardManager
 import org.example.project.screen.FloatingBubbles
 
+// ✅ HÀM FORMAT SỐ TIỀN
+fun formatMoney(amount: Int): String {
+    return "${amount * 1000}". reversed().chunked(3).joinToString(",").reversed()
+}
+
 data class GameTicket(
     val gameCode: Int,
-    val name: String,
+    val name:  String,
     val emoji: String,
-    val price:  Int,
+    val price: Int,  // Đơn vị:  nghìn đồng
     val gradientColors: List<Color>,
     var quantity: Int = 0
 )
@@ -50,14 +55,14 @@ fun UserBuyTicketsScreen(
     var cart by remember {
         mutableStateOf(
             listOf(
-                GameTicket(1001, "Tàu Lượn", "🎢", 1000, listOf(Color(0xFFFF6B6B), Color(0xFFFF8E8E))),
-                GameTicket(1002, "Đu Quay", "🎡", 5000, listOf(Color(0xFF4ECDC4), Color(0xFF6EE5DB))),
-                GameTicket(1003, "Nhà Phao", "🏰", 8000, listOf(Color(0xFFFFBE0B), Color(0xFFFFD60A))),
-                GameTicket(1004, "Tàu Cướp Biển", "🏴‍☠️", 1200, listOf(Color(0xFF8B5CF6), Color(0xFFA78BFA))),
-                GameTicket(1005, "Bể Bơi", "🏊", 6000, listOf(Color(0xFF3B82F6), Color(0xFF60A5FA))),
-                GameTicket(1006, "Con Lắc 360°", "🎪", 1500, listOf(Color(0xFFEC4899), Color(0xFFF472B6))),
-                GameTicket(1007, "Nhà Ma", "👻", 9000, listOf(Color(0xFF6366F1), Color(0xFF818CF8))),
-                GameTicket(1008, "Đua Xe", "🏎️", 1100, listOf(Color(0xFFEF4444), Color(0xFFF87171)))
+                GameTicket(1001, "Tàu Lượn", "🎢", 1, listOf(Color(0xFFFF6B6B), Color(0xFFFF8E8E))),
+                GameTicket(1002, "Đu Quay", "🎡", 5, listOf(Color(0xFF4ECDC4), Color(0xFF6EE5DB))),
+                GameTicket(1003, "Nhà Phao", "🏰", 8, listOf(Color(0xFFFFBE0B), Color(0xFFFFD60A))),
+                GameTicket(1004, "Tàu Cướp Biển", "🏴‍☠️", 12, listOf(Color(0xFF8B5CF6), Color(0xFFA78BFA))),
+                GameTicket(1005, "Bể Bơi", "🏊", 6, listOf(Color(0xFF3B82F6), Color(0xFF60A5FA))),
+                GameTicket(1006, "Con Lắc 360°", "🎪", 15, listOf(Color(0xFFEC4899), Color(0xFFF472B6))),
+                GameTicket(1007, "Nhà Ma", "👻", 9, listOf(Color(0xFF6366F1), Color(0xFF818CF8))),
+                GameTicket(1008, "Đua Xe", "🏎️", 11, listOf(Color(0xFFEF4444), Color(0xFFF87171)))
             )
         )
     }
@@ -66,7 +71,7 @@ fun UserBuyTicketsScreen(
 
     fun loadBalance() {
         scope.launch {
-            val bal = smartCardManager.checkBalance()*1000
+            val bal = smartCardManager.checkBalance()
             balance = if (bal >= 0) bal else 0
         }
     }
@@ -143,7 +148,7 @@ fun UserBuyTicketsScreen(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "🎟️ Mua Lượt Chơi",  // ✅ ĐỔI
+                                text = "🎟️ Mua Lượt Chơi",
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
@@ -156,16 +161,16 @@ fun UserBuyTicketsScreen(
                                 )
                             ) {
                                 Row(
-                                    modifier = Modifier. padding(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text("💰", fontSize = 18.sp)
                                     Spacer(modifier = Modifier. width(6.dp))
                                     Text(
-                                        text = "$balance VNĐ",
+                                        text = "${formatMoney(balance)} VNĐ",
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color. White
+                                        color = Color.White
                                     )
                                 }
                             }
@@ -220,7 +225,7 @@ fun UserBuyTicketsScreen(
                                 )
                             ) {
                                 Text(
-                                    text = "$totalTickets lượt",  // ✅ ĐỔI
+                                    text = "$totalTickets lượt",
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
@@ -295,7 +300,7 @@ fun UserBuyTicketsScreen(
                                 )
                                 Spacer(modifier = Modifier. height(4.dp))
                                 Text(
-                                    text = "$totalTickets lượt • $totalAmount VNĐ",  // ✅ ĐỔI
+                                    text = "$totalTickets lượt • ${formatMoney(totalAmount)} VNĐ",
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color.White
@@ -309,7 +314,7 @@ fun UserBuyTicketsScreen(
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color. White,
                                     contentColor = Color(0xFF4CAF50),
-                                    disabledContainerColor = Color.Gray
+                                    disabledContainerColor = Color. Gray
                                 ),
                                 modifier = Modifier. height(56.dp),
                                 elevation = ButtonDefaults.buttonElevation(
@@ -397,7 +402,7 @@ fun UserBuyTicketsScreen(
                         Text("🛒", fontSize = 28.sp)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            "Xác nhận mua lượt",  // ✅ ĐỔI
+                            "Xác nhận mua lượt",
                             fontWeight = FontWeight.Bold,
                             fontSize = 20.sp
                         )
@@ -440,14 +445,14 @@ fun UserBuyTicketsScreen(
                                                 fontSize = 15.sp
                                             )
                                             Text(
-                                                "${game.quantity} lượt × ${game.price}",  // ✅ ĐỔI
+                                                "${game.quantity} lượt × ${formatMoney(game.price)}",
                                                 fontSize = 13.sp,
                                                 color = Color.Gray
                                             )
                                         }
                                     }
                                     Text(
-                                        "${game. quantity * game.price} đ",
+                                        "${formatMoney(game.quantity * game. price)} đ",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp,
                                         color = game.gradientColors[0]
@@ -471,7 +476,7 @@ fun UserBuyTicketsScreen(
                                 fontSize = 16.sp
                             )
                             Text(
-                                "$totalAmount VNĐ",
+                                "${formatMoney(totalAmount)} VNĐ",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 20.sp,
                                 color = Color(0xFF4CAF50)
@@ -488,8 +493,8 @@ fun UserBuyTicketsScreen(
 
                             scope.launch {
                                 try {
-                                    println("💳 Thanh toán $totalAmount VNĐ...")
-                                    val paymentSuccess = smartCardManager.makePayment(totalAmount/1000)
+                                    println("💳 Thanh toán $totalAmount (${formatMoney(totalAmount)} VNĐ)...")
+                                    val paymentSuccess = smartCardManager.makePayment(totalAmount)
 
                                     if (! paymentSuccess) {
                                         status = "❌ Thanh toán thất bại!  Không đủ số dư."
@@ -500,7 +505,7 @@ fun UserBuyTicketsScreen(
                                     println("✅ Thanh toán thành công!")
                                     delay(500)
 
-                                    status = "📝 Đang ghi lượt lên thẻ..."  // ✅ ĐỔI
+                                    status = "📝 Đang ghi lượt lên thẻ..."
                                     var successCount = 0
                                     var failCount = 0
 
@@ -524,11 +529,11 @@ fun UserBuyTicketsScreen(
                                     }
 
                                     if (failCount == 0) {
-                                        status = "✅ Mua lượt thành công!  Đã thêm $totalTickets lượt vào thẻ."  // ✅ ĐỔI
+                                        status = "✅ Mua lượt thành công!  Đã thêm $totalTickets lượt vào thẻ."
                                         cart = cart.map { it.copy(quantity = 0) }
                                         loadBalance()
                                     } else {
-                                        status = "⚠️ Thanh toán OK nhưng có $failCount lượt không ghi được. Vui lòng liên hệ quản lý!"
+                                        status = "⚠️ Thanh toán OK nhưng có $failCount lượt không ghi được.  Vui lòng liên hệ quản lý!"
                                     }
 
                                 } catch (e: Exception) {
@@ -617,12 +622,12 @@ private fun GameTicketCard(
                         Text(
                             text = game.name,
                             fontSize = 18.sp,
-                            fontWeight = FontWeight. Bold,
+                            fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Spacer(modifier = Modifier. height(4.dp))
                         Text(
-                            text = "${game.price} VNĐ/lượt",  // ✅ ĐỔI
+                            text = "${formatMoney(game.price)} VNĐ/lượt",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color.White. copy(alpha = 0.9f)
@@ -643,13 +648,13 @@ private fun GameTicketCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(game.gradientColors[0]. copy(alpha = 0.15f))
+                            .background(game.gradientColors[0].copy(alpha = 0.15f))
                     ) {
                         Icon(
                             imageVector = Icons.Default.Remove,
                             contentDescription = "Giảm",
                             tint = game.gradientColors[0],
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier. size(20.dp)
                         )
                     }
 
@@ -679,23 +684,22 @@ private fun GameTicketCard(
                 }
             }
 
-            // ✅ BADGE ĐÃ SỬA - TỰ ĐỘNG RỘNG RA
             if (game.quantity > 0) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp)
-                        .widthIn(min = 32.dp)  // ✅ THAY ĐỔI:  Tự động rộng
-                        .height(32.dp)         // ✅ THAY ĐỔI:  Cao hơn
+                        .widthIn(min = 32.dp)
+                        .height(32.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White)
                         .shadow(4.dp, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 8.dp),  // ✅ THÊM:  Padding ngang
+                        .padding(horizontal = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "${game.quantity}",
-                        fontSize = 14.sp,  // ✅ THAY ĐỔI: To hơn
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = game.gradientColors[0]
                     )
