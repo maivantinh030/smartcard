@@ -607,7 +607,7 @@ fun AdminWriteInfoScreen(
 
                                 try {
                                     val writeSuccess = smartCardManager.writeCustomerInfo(
-                                        customerID, name, dateOfBirth, phoneNumber, ""
+                                        customerID, name, dateOfBirth, phoneNumber
                                     )
 
                                     if (! writeSuccess) {

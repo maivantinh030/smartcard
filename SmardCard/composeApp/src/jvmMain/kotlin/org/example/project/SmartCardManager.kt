@@ -199,25 +199,31 @@ class SmartCardManager {
         }
     }
 
-    fun writeCustomerInfo(customerID: String, name: String, dateOfBirth: String, phoneNumber: String, cardType: String): Boolean {
+    fun writeCustomerInfo(customerID: String, name: String, dateOfBirth: String, phoneNumber: String): Boolean {
         return try {
-            val data = ByteArray(95)
-            val customerIDBytes = customerID.toByteArray(Charsets.UTF_8)
-            val nameBytes = name.toByteArray(Charsets. UTF_8)
-            val dobBytes = dateOfBirth.toByteArray(Charsets. UTF_8)
-            val phoneBytes = phoneNumber.toByteArray(Charsets.UTF_8)
-            val cardTypeBytes = cardType.toByteArray(Charsets.UTF_8)
+            // Padded field sizes (AES blocks)
+            val LEN_ID = 16
+            val LEN_NAME = 64
+            val LEN_DOB = 16
+            val LEN_PHONE = 16
+            val data = ByteArray(LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE) // 112 bytes
 
-            customerIDBytes.copyInto(data, 0, 0, minOf(customerIDBytes.size, 15))
-            nameBytes.copyInto(data, 15, 0, minOf(nameBytes. size, 50))
-            dobBytes.copyInto(data, 65, 0, minOf(dobBytes.size, 10))
-            phoneBytes.copyInto(data, 75, 0, minOf(phoneBytes.size, 10))
-            cardTypeBytes.copyInto(data, 85, 0, minOf(cardTypeBytes.size, 10))
+            // Copy and leave remaining bytes as 0 (already zero-initialized)
+            val idBytes = customerID.toByteArray(Charsets.UTF_8)
+            idBytes.copyInto(data, 0, 0, minOf(idBytes.size, LEN_ID))
+
+            val nameBytes = name.toByteArray(Charsets.UTF_8)
+            nameBytes.copyInto(data, LEN_ID, 0, minOf(nameBytes.size, LEN_NAME))
+
+            val dobBytes = dateOfBirth.toByteArray(Charsets.UTF_8)
+            dobBytes.copyInto(data, LEN_ID + LEN_NAME, 0, minOf(dobBytes.size, LEN_DOB))
+
+            val phoneBytes = phoneNumber.toByteArray(Charsets.UTF_8)
+            phoneBytes.copyInto(data, LEN_ID + LEN_NAME + LEN_DOB, 0, minOf(phoneBytes.size, LEN_PHONE))
 
             val command = byteArrayOf(0x80.toByte(), 0x01, 0x00, 0x00, data.size.toByte()) + data
             val response = this.sendCommand(command)
-            println(response)
-            response?. takeLast(2)?.toByteArray()?.contentEquals(byteArrayOf(0x90.toByte(), 0x00)) ?: false
+            response?.takeLast(2)?.toByteArray()?.contentEquals(byteArrayOf(0x90.toByte(), 0x00)) ?: false
         } catch (e: Exception) {
             println("Error writing data to card: ${e.message}")
             false
@@ -270,7 +276,13 @@ class SmartCardManager {
     // ✅ HÀM MỚI: Đọc thông tin khách hàng
     fun readCustomerInfo(): Map<String, String> {
         return try {
-            val cmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, 0x61) // Read 97 bytes
+            val LEN_ID = 16
+            val LEN_NAME = 64
+            val LEN_DOB = 16
+            val LEN_PHONE = 16
+            val INFO_LEN = LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE + 2 // +2 for photoLength
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, INFO_LEN.toByte()) // expect 0x72 bytes
             val response = sendCommand(cmd) ?: return emptyMap()
 
             val sw = getStatusWord(response)
@@ -280,186 +292,115 @@ class SmartCardManager {
             }
 
             val data = response.dropLast(2).toByteArray()
-            if (data.size < 97) {
-                println("Invalid data size:  ${data.size}")
+            if (data.size < INFO_LEN) {
+                println("Invalid data size: ${data.size}")
                 return emptyMap()
             }
 
-            // Parse data
             var pos = 0
-            val customerID = String(data, pos, 15, Charsets.UTF_8).trim('\u0000', ' ')
-            pos += 15
-            val name = String(data, pos, 50, Charsets.UTF_8).trim('\u0000', ' ')
-            pos += 50
-            val dateOfBirth = String(data, pos, 10, Charsets.UTF_8).trim('\u0000', ' ')
-            pos += 10
-            val phoneNumber = String(data, pos, 10, Charsets.UTF_8).trim('\u0000', ' ')
-            pos += 10
-            val cardType = String(data, pos, 10, Charsets.UTF_8).trim('\u0000', ' ')
-            pos += 10
+            val customerID = String(data, pos, LEN_ID, Charsets.UTF_8).trim('\u0000', ' ')
+            pos += LEN_ID
+            val name = String(data, pos, LEN_NAME, Charsets.UTF_8).trim('\u0000', ' ')
+            pos += LEN_NAME
+            val dateOfBirth = String(data, pos, LEN_DOB, Charsets.UTF_8).trim('\u0000', ' ')
+            pos += LEN_DOB
+            val phoneNumber = String(data, pos, LEN_PHONE, Charsets.UTF_8).trim('\u0000', ' ')
+            pos += LEN_PHONE
 
-            // Photo length (2 bytes)
-            val photoLengthHigh = data[95]. toInt() and 0xFF
-            val photoLengthLow = data[96].toInt() and 0xFF
+            val photoLengthHigh = data[pos].toInt() and 0xFF
+            val photoLengthLow = data[pos + 1].toInt() and 0xFF
             val photoLength = (photoLengthHigh shl 8) or photoLengthLow
-
-            println("✅ Read customer info:  ID=$customerID, Name=$name, PhotoLength=$photoLength")
 
             mapOf(
                 "customerID" to customerID,
                 "name" to name,
                 "dateOfBirth" to dateOfBirth,
                 "phoneNumber" to phoneNumber,
-                "cardType" to cardType,
-                "photoLength" to photoLength. toString()
+                "photoLength" to photoLength.toString()
             )
-
         } catch (e: Exception) {
-            println("❌ Error reading customer info: ${e.message}")
+            println("Error reading customer info: ${e.message}")
             emptyMap()
         }
     }
     // ✅ HÀM DEBUG - Kiểm tra photoLength
     fun debugPhotoInfo() {
         try {
-            val cmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, 0x61)
+            val LEN_ID = 16; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
+            val INFO_LEN = LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE + 2
+            val cmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, INFO_LEN.toByte())
             val response = sendCommand(cmd)
 
-            if (response != null && response.size >= 99) {
+            if (response != null && response.size >= INFO_LEN + 2) {
                 val data = response.dropLast(2).toByteArray()
-
-                // Parse photo length
-                val photoLengthHigh = data[95].toInt() and 0xFF
-                val photoLengthLow = data[96].toInt() and 0xFF
-                val photoLength = (photoLengthHigh shl 8) or photoLengthLow
+                val photoLenHigh = data[LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE].toInt() and 0xFF
+                val photoLenLow = data[LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE + 1].toInt() and 0xFF
+                val photoLength = (photoLenHigh shl 8) or photoLenLow
 
                 println("🔍 DEBUG INFO:")
                 println("   Response size: ${response.size}")
-                println("   Data[95] (High): $photoLengthHigh")
-                println("   Data[96] (Low): $photoLengthLow")
                 println("   Photo Length: $photoLength bytes")
-                println("   Raw bytes [95-96]: ${data[95]. toString(16)}, ${data[96].toString(16)}")
+                println("   Raw bytes [${INFO_LEN - 2}-${INFO_LEN - 1}]: ${data[INFO_LEN - 2].toString(16)}, ${data[INFO_LEN - 1].toString(16)}")
             } else {
-                println("❌ Invalid response:  ${response?.size ?: 0} bytes")
+                println("❌ Invalid response: ${response?.size ?: 0} bytes")
             }
         } catch (e: Exception) {
-            println("❌ Error:  ${e.message}")
+            println("❌ Error: ${e.message}")
         }
     }
     // ✅ HÀM MỚI:  Đọc ảnh khách hàng
     fun readCustomerImage(): ByteArray? {
         return try {
-            println("📥 === START READ CUSTOMER IMAGE ===")
+            val LEN_ID = 16; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
+            val INFO_LEN = LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE + 2
 
-            // 1. Đọc thông tin để lấy photoLength
-            val infoCmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, 0x61)
-            val infoResponse = sendCommand(infoCmd)
+            val infoCmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, INFO_LEN.toByte())
+            val infoResponse = sendCommand(infoCmd) ?: return null
 
-            if (infoResponse == null) {
-                println("❌ Failed to read info command")
-                return null
-            }
-
-            println("✅ Info response size: ${infoResponse.size}")
-
-            if (infoResponse.size < 99) {
-                println("❌ Response too small: ${infoResponse. size} < 99")
+            if (infoResponse.size < INFO_LEN + 2) {
+                println("❌ Response too small: ${infoResponse.size} < ${INFO_LEN + 2}")
                 return null
             }
 
             val data = infoResponse.dropLast(2).toByteArray()
-
-            // Parse photoLength (bytes at position 95-96)
-            val photoLengthHigh = data[95].toInt() and 0xFF
-            val photoLengthLow = data[96]. toInt() and 0xFF
+            val pos = LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE
+            val photoLengthHigh = data[pos].toInt() and 0xFF
+            val photoLengthLow = data[pos + 1].toInt() and 0xFF
             val photoLength = (photoLengthHigh shl 8) or photoLengthLow
-
-            println("📊 Photo Length Info:")
-            println("   Position 95 (High byte): $photoLengthHigh (0x${photoLengthHigh.toString(16)})")
-            println("   Position 96 (Low byte): $photoLengthLow (0x${photoLengthLow. toString(16)})")
-            println("   Calculated length: $photoLength bytes")
 
             if (photoLength == 0) {
                 println("⚠️ Photo length is 0 - no photo on card")
                 return null
             }
-
             if (photoLength > 8000) {
                 println("⚠️ Photo length too large: $photoLength > 8000")
                 return null
             }
 
-            // 2. Đọc ảnh theo từng chunk
-            println("📦 Starting to read photo chunks...")
             val photoData = mutableListOf<Byte>()
             var offset = 0
             val chunkSize = 200
-            var chunkCount = 0
 
             while (offset < photoLength) {
                 val p1 = (offset shr 8).toByte()
                 val p2 = (offset and 0xFF).toByte()
-                val remainingBytes = photoLength - offset
-                val requestSize = minOf(chunkSize, remainingBytes)
+                val requestSize = minOf(chunkSize, photoLength - offset)
 
-                val readCmd = byteArrayOf(
-                    0x80.toByte(), 0x05,     // CLA, INS
-                    p1, p2,                  // P1, P2 (offset)
-                    requestSize.toByte()      // Le (chunk size)
-                )
-
-                println("📤 Chunk $chunkCount: offset=$offset, request=$requestSize bytes")
-
-                val response = sendCommand(readCmd)
-                if (response == null) {
-                    println("❌ No response for chunk $chunkCount at offset $offset")
-                    break
-                }
-
+                val readCmd = byteArrayOf(0x80.toByte(), 0x05, p1, p2, requestSize.toByte())
+                val response = sendCommand(readCmd) ?: break
                 val sw = getStatusWord(response)
-                if (sw != 0x9000) {
-                    println("❌ Error reading chunk $chunkCount: SW=0x${sw.toString(16)}")
-                    if (sw == 0x6A86) {
-                        println("   (Incorrect P1P2 - offset beyond data)")
-                    }
-                    break
-                }
+                if (sw != 0x9000) break
 
                 val chunk = response.dropLast(2).toByteArray()
-                if (chunk.isEmpty()) {
-                    println("⚠️ Empty chunk at offset $offset")
-                    break
-                }
+                if (chunk.isEmpty()) break
 
-                photoData.addAll(chunk. toList())
+                photoData.addAll(chunk.toList())
                 offset += chunk.size
-                chunkCount++
-
-                println("✅ Chunk $chunkCount: received ${chunk.size} bytes, total:  ${photoData.size}/$photoLength")
             }
 
-            println("📊 FINAL RESULT:")
-            println("   Expected:  $photoLength bytes")
-            println("   Received: ${photoData.size} bytes")
-            println("   Chunks read: $chunkCount")
-
-            if (photoData. isEmpty()) {
-                println("❌ No photo data received")
-                return null
-            }
-
-            if (photoData.size != photoLength) {
-                println("⚠️ Size mismatch but returning data anyway")
-            } else {
-                println("✅ Photo read successfully!")
-            }
-
-            println("📥 === END READ CUSTOMER IMAGE ===")
-            photoData. toByteArray()
-
+            if (photoData.isEmpty()) null else photoData.toByteArray()
         } catch (e: Exception) {
             println("❌ Exception reading photo: ${e.message}")
-            e.printStackTrace()
             null
         }
     }
@@ -481,7 +422,9 @@ class SmartCardManager {
     }
 
     private fun readCustomerBasicInfo(): ByteArray? {
-        val readCmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, 0x61)
+        val LEN_ID = 16; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
+        val INFO_LEN = LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE + 2
+        val readCmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, INFO_LEN.toByte())
         val response = sendCommand(readCmd) ?: return null
 
         val sw = getStatusWord(response)
@@ -558,27 +501,26 @@ class SmartCardManager {
             null
         }
     }
-
     private fun parseCustomerBasicInfo(data: ByteArray): Customer {
+        val LEN_ID = 16; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
         var pos = 0
 
-        val maKH = String(data, pos, 15).trim('\u0000', ' ')
-        pos += 15
-        val hoTen = String(data, pos, 50).trim('\u0000', ' ')
-        pos += 50
-        val ngaySinh = String(data, pos, 10).trim('\u0000', ' ')
-        pos += 10
-        val soDienThoai = String(data, pos, 10).trim('\u0000', ' ')
-        pos += 10
-        val loaiThe = String(data, pos, 10).trim('\u0000', ' ')
-        pos += 10
+        val maKH = String(data, pos, LEN_ID).trim('\u0000', ' ')
+        pos += LEN_ID
+        val hoTen = String(data, pos, LEN_NAME).trim('\u0000', ' ')
+        pos += LEN_NAME
+        val ngaySinh = String(data, pos, LEN_DOB).trim('\u0000', ' ')
+        pos += LEN_DOB
+        val soDienThoai = String(data, pos, LEN_PHONE).trim('\u0000', ' ')
+        pos += LEN_PHONE
 
-        val photoLen = if (data. size >= 97) {
-            ((data[95].toInt() and 0xFF) shl 8) or (data[96].toInt() and 0xFF)
+        val photoLen = if (data.size >= pos + 2) {
+            ((data[pos].toInt() and 0xFF) shl 8) or (data[pos + 1].toInt() and 0xFF)
         } else 0
 
-        println("Customer:  '$maKH', '$hoTen', Photo length: $photoLen")
+        val loaiThe = "" // removed from card model
 
+        println("Customer: '$maKH', '$hoTen', Photo length: $photoLen")
         return Customer(maKH, hoTen, ngaySinh, soDienThoai, loaiThe, null)
     }
 
