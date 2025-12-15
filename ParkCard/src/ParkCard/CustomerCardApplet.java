@@ -6,9 +6,9 @@ public class CustomerCardApplet extends Applet {
     private PinManager pinMgr;
     private GameManager gameMgr;
     private CryptoManager cryptoMgr;
-
     // Instruction codes
     private static final byte INS_CREATE_PIN = (byte) 0x40;
+
     private static final byte INS_VERIFY_PIN = (byte) 0x20;
     private static final byte INS_CHANGE_PIN = (byte) 0x24;
     private static final byte INS_GET_PIN_TRIES = (byte) 0x41;
@@ -20,14 +20,17 @@ public class CustomerCardApplet extends Applet {
     private static final byte INS_READ_INFO = (byte) 0x03;
     private static final byte INS_READ_PHOTO_CHUNK = (byte) 0x05;
     private static final byte INS_RECHARGE_BALANCE = (byte) 0x50;
-    private static final byte INS_CHECK_BALANCE = (byte) 0x51;
-    private static final byte INS_MAKE_PAYMENT = (byte) 0x52;
-    private static final byte INS_ADD_OR_INCREASE_TICKETS = (byte) 0x60;
-    private static final byte INS_DECREASE_GAME_TICKETS = (byte) 0x61;
-    private static final byte INS_READ_GAMES = (byte) 0x62;
-    private static final byte INS_UPDATE_GAME_TICKETS = (byte) 0x63;
-    private static final byte INS_FIND_GAME = (byte) 0x64;
-    private static final byte INS_REMOVE_GAME = (byte) 0x65;
+   
+	private static final byte INS_CHECK_BALANCE = (byte) 0x51;
+	private static final byte INS_MAKE_PAYMENT = (byte) 0x52;
+		// Game management instruction codes
+	private static final byte INS_ADD_OR_INCREASE_TICKETS = (byte) 0x80;
+	private static final byte INS_DECREASE_GAME_TICKETS = (byte) 0x81;
+	private static final byte INS_READ_GAMES = (byte) 0x82;
+	private static final byte INS_UPDATE_GAME_TICKETS = (byte) 0x83;
+	private static final byte INS_FIND_GAME = (byte) 0x84;
+	private static final byte INS_REMOVE_GAME = (byte) 0x85;
+	
     
     // New commands
     private static final byte INS_GET_CRYPTO_INFO = (byte) 0x70;  // Ly IV v� Salt
@@ -83,7 +86,6 @@ public class CustomerCardApplet extends Applet {
             case INS_UPDATE_GAME_TICKETS: requireAuthenticated(); gameMgr.updateGameTickets(apdu); break;
             case INS_FIND_GAME: requireAuthenticated(); gameMgr.findGame(apdu); break;
             case INS_REMOVE_GAME: requireAuthenticated(); gameMgr.removeGame(apdu); break;
-            
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
@@ -138,12 +140,12 @@ public class CustomerCardApplet extends Applet {
         apdu.setOutgoingLength((short)32);
         apdu.sendBytesLong(buf, (short)0, (short)32);
     }
-
     public void deselect() {
         // Clear key v� reset dataReady khi deselect
         if (model.isDataReady()) {
             cryptoMgr.clearKey();
             model.setDataReady(false);
+
         }
     }
 }
