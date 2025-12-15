@@ -37,7 +37,7 @@ fun AdminRechargeScreen(
         scope.launch {
             isLoading = true
             try {
-                balance = smartCardManager.checkBalance()
+                balance = smartCardManager.checkBalance()*1000
                 status = "✅ Đã tải số dư"
             } catch (e: Exception) {
                 status = "❌ Lỗi:  ${e.message}"
@@ -213,9 +213,7 @@ fun AdminRechargeScreen(
                             focusedLabelColor = Color(0xFFFFB74D)
                         ),
                         singleLine = true,
-                        supportingText = {
-                            Text("Tối đa: 30,000 VNĐ", fontSize = 12.sp, color = Color.Gray)
-                        }
+
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -259,7 +257,7 @@ fun AdminRechargeScreen(
                                     val amount = rechargeAmount.toIntOrNull()
                                     if (amount != null && amount > 0) {
                                         isLoading = true
-                                        val success = smartCardManager.rechargeBalance(amount)
+                                        val success = smartCardManager.rechargeBalance(amount/1000)
                                         if (success) {
                                             loadBalance()
                                             rechargeAmount = ""

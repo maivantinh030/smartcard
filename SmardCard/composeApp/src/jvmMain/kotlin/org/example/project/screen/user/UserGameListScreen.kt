@@ -417,12 +417,7 @@ private fun GameTicketItemCard(game: GameEntry) {
                             color = Color.White
                         )
                         Spacer(modifier = Modifier. height(4.dp))
-                        Text(
-                            text = "Game #${game.gameCode}",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
+
                     }
                 }
 

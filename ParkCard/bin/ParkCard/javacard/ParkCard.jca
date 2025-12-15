@@ -1,5 +1,5 @@
 // converted by version 1.3
-// on Tue Dec 16 01:03:42 ICT 2025
+// on Tue Dec 16 01:28:37 ICT 2025
 
 .package ParkCard {
 	.aid 0x11:0x11:0x11:0x11:0x11;
@@ -1394,12 +1394,12 @@
 			private static final byte INS_RECHARGE_BALANCE = 80;		// B
 			private static final byte INS_CHECK_BALANCE = 81;		// B
 			private static final byte INS_MAKE_PAYMENT = 82;		// B
-			private static final byte INS_ADD_OR_INCREASE_TICKETS = 96;		// B
-			private static final byte INS_DECREASE_GAME_TICKETS = 97;		// B
-			private static final byte INS_READ_GAMES = 98;		// B
-			private static final byte INS_UPDATE_GAME_TICKETS = 99;		// B
-			private static final byte INS_FIND_GAME = 100;		// B
-			private static final byte INS_REMOVE_GAME = 101;		// B
+			private static final byte INS_ADD_OR_INCREASE_TICKETS = -128;		// B
+			private static final byte INS_DECREASE_GAME_TICKETS = -127;		// B
+			private static final byte INS_READ_GAMES = -126;		// B
+			private static final byte INS_UPDATE_GAME_TICKETS = -125;		// B
+			private static final byte INS_FIND_GAME = -124;		// B
+			private static final byte INS_REMOVE_GAME = -123;		// B
 			private static final byte INS_GET_CRYPTO_INFO = 112;		// B
 			private static final short SW_SECURITY_STATUS_NOT_SATISFIED = 27010;		// S
 			private static final short SW_AUTHENTICATION_METHOD_BLOCKED = 27011;		// S
@@ -1495,7 +1495,7 @@
 					baload;
 					sstore_3;
 				L4:	sload_3;
-					slookupswitch L26 21 1 L11 2 L13 3 L15 4 L12 5 L16 6 L14 32 L6 36 L7 64 L5 65 L8 66 L9 80 L17 81 L18 82 L19 96 L20 97 L21 98 L22 99 L23 100 L24 101 L25 112 L10;
+					slookupswitch L26 21 -128 L20 -127 L21 -126 L22 -125 L23 -124 L24 -123 L25 1 L11 2 L13 3 L15 4 L12 5 L16 6 L14 32 L6 36 L7 64 L5 65 L8 66 L9 80 L17 81 L18 82 L19 112 L10;
 				L5:	getfield_a_this 20;		// reference ParkCard/CustomerCardApplet.pinMgr
 					aload_1;
 					invokevirtual 62;		// ParkCard/PinManager.createPIN(Ljavacard/framework/APDU;)V
