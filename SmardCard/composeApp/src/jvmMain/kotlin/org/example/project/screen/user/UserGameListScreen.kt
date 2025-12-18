@@ -23,6 +23,17 @@ import kotlinx.coroutines.launch
 import org.example.project.GameEntry
 import org.example.project.SmartCardManager
 import org.example.project.screen.FloatingBubbles
+import org.example.project.network.GameApiClient
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import org.jetbrains.skia.Image as SkiaImage
+
+// Server metadata for game (name + decoded image)
+data class ServerGameInfo(
+    val name: String?,
+    val image: ImageBitmap?
+)
 
 // ✅ Map tên game từ gameCode
 fun getGameName(gameCode: Int): String {
@@ -74,10 +85,12 @@ fun UserGameListScreen(
     onBack: () -> Unit
 ) {
     var games by remember { mutableStateOf<List<GameEntry>>(emptyList()) }
+    var serverGames by remember { mutableStateOf<Map<Int, ServerGameInfo>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
 
     val scope = rememberCoroutineScope()
+    val gameApiClient = remember { GameApiClient() }
 
     fun loadGames() {
         scope.launch {
@@ -92,7 +105,24 @@ fun UserGameListScreen(
                     println("   - Game ${game.gameCode}: ${game.tickets} lượt")
                 }
 
-                games = gameList. filter { it.tickets > 0 }
+                // Load server games for metadata (name + image)
+                val serverResult = gameApiClient.getAllGames()
+                serverResult.onSuccess { list ->
+                    serverGames = list.associateBy(
+                        { it.gameCode },
+                        { dto ->
+                            val bytes = gameApiClient.decodeImage(dto.gameImage)
+                            val img = bytes?.let { b ->
+                                try { SkiaImage.makeFromEncoded(b).toComposeImageBitmap() } catch (_: Exception) { null }
+                            }
+                            ServerGameInfo(dto.gameName, img)
+                        }
+                    )
+                }.onFailure { e ->
+                    println("⚠️ Không tải được danh sách game server: ${e.message}")
+                }
+
+                games = gameList.filter { it.tickets > 0 }
 
                 status = if (games.isEmpty()) {
                     "⚠️ Bạn chưa có lượt chơi nào"
@@ -313,7 +343,8 @@ fun UserGameListScreen(
                             modifier = Modifier. weight(1f)
                         ) {
                             items(games) { game ->
-                                GameTicketItemCard(game)
+                                val meta = serverGames[game.gameCode]
+                                GameTicketItemCard(game, meta)
                             }
                         }
                     }
@@ -363,7 +394,7 @@ fun UserGameListScreen(
 }
 
 @Composable
-private fun GameTicketItemCard(game: GameEntry) {
+private fun GameTicketItemCard(game: GameEntry, meta: ServerGameInfo?) {
     val colors = getGameColors(game. gameCode)
 
     Card(
@@ -401,8 +432,14 @@ private fun GameTicketItemCard(game: GameEntry) {
                             .shadow(4.dp, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = getGameEmoji(game.gameCode),
+                        meta?.image?.let { img ->
+                            Image(
+                                bitmap = img,
+                                contentDescription = "Game image",
+                                modifier = Modifier.size(56.dp).clip(CircleShape)
+                            )
+                        } ?: Text(
+                            text = meta?.name?.let { getGameEmoji(game.gameCode) } ?: getGameEmoji(game.gameCode),
                             fontSize = 36.sp
                         )
                     }
@@ -411,13 +448,12 @@ private fun GameTicketItemCard(game: GameEntry) {
 
                     Column {
                         Text(
-                            text = getGameName(game. gameCode),
+                            text = meta?.name ?: getGameName(game. gameCode),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Spacer(modifier = Modifier. height(4.dp))
-
                     }
                 }
 

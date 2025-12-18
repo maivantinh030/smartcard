@@ -25,125 +25,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.example.project.SmartCardManager
+import org.example.project.network.RSAApiClient
+import java.util.Base64
 import kotlin.math.sin
 
-//@Composable
-//fun ConnectScreen(
-//    onCardConnected: () -> Unit,
-//    smartCardManager: SmartCardManager
-//) {
-//    var isConnecting by remember { mutableStateOf(false) }
-//    var status by remember { mutableStateOf("") }
-//
-//    val smartCardManager = remember { SmartCardManager() }
-//    val scope = rememberCoroutineScope()
-//
-//    Box(
-//        modifier = Modifier.fillMaxSize(),
-//        contentAlignment = Alignment.Center
-//    ) {
-//        Card(
-//            modifier = Modifier
-//                .padding(32.dp)
-//                .fillMaxWidth(0.8f),
-//            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-//            colors = CardDefaults.cardColors(containerColor = Color.White)
-//        ) {
-//            Column(
-//                modifier = Modifier.padding(48.dp),
-//                horizontalAlignment = Alignment.CenterHorizontally
-//            ) {
-//                Text(
-//                    text = "💳",
-//                    fontSize = 80.sp
-//                )
-//
-//                Spacer(modifier = Modifier.height(24.dp))
-//
-//                Text(
-//                    text = "SmartCard Manager",
-//                    fontSize = 28.sp,
-//                    fontWeight = FontWeight.Bold,
-//                    color = Color(0xFF1976D2)
-//                )
-//
-//                Spacer(modifier = Modifier.height(8.dp))
-//
-//                Text(
-//                    text = "Vui lòng kết nối thẻ để tiếp tục",
-//                    fontSize = 16.sp,
-//                    color = Color.Gray,
-//                    textAlign = TextAlign.Center
-//                )
-//
-//                Spacer(modifier = Modifier.height(32.dp))
-//
-//                if (isConnecting) {
-//                    CircularProgressIndicator(
-//                        modifier = Modifier.size(40.dp),
-//                        color = Color(0xFF1976D2)
-//                    )
-//                    Spacer(modifier = Modifier.height(16.dp))
-//                    Text(
-//                        text = "Đang kết nối...",
-//                        fontSize = 14.sp,
-//                        color = Color.Gray
-//                    )
-//                } else {
-//                    Button(
-//                        onClick = {
-//                            scope.launch {
-//                                isConnecting = true
-//                                status = ""
-//
-//                                val connected = smartCardManager.connectToCard()
-//                                if (connected) {
-//                                    onCardConnected()
-//                                } else {
-//                                    status = "Không thể kết nối thẻ!"
-//                                }
-//                                isConnecting = false
-//                            }
-//                        },
-//                        modifier = Modifier
-//                            .fillMaxWidth()
-//                            .height(56.dp),
-//                        colors = ButtonDefaults.buttonColors(
-//                            containerColor = Color(0xFF1976D2)
-//                        )
-//                    ) {
-//                        Text(
-//                            text = "🔌 Kết nối thẻ",
-//                            fontSize = 18.sp,
-//                            fontWeight = FontWeight.Medium,
-//                            color = Color.White
-//                        )
-//                    }
-//                }
-//
-//                if (status.isNotEmpty()) {
-//                    Spacer(modifier = Modifier.height(16.dp))
-//                    Text(
-//                        text = status,
-//                        color = Color.Red,
-//                        fontSize = 14.sp
-//                    )
-//                }
-//            }
-//        }
-//    }
-//}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectScreen(
     onCardConnected: () -> Unit,
-    smartCardManager: SmartCardManager = remember { SmartCardManager() }
+    onRequireRSASetup: () -> Unit = {},
+    smartCardManager: SmartCardManager = remember { SmartCardManager() },
+    requireRSAAuth: Boolean = true
 ) {
     var isConnecting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
+    var rsaStatus by remember { mutableStateOf("") }
+    val rsaApi = remember { RSAApiClient() }
     val scope = rememberCoroutineScope()
 
     // Background siêu vui nhộn kiểu công viên
@@ -232,12 +134,89 @@ fun ConnectScreen(
                     scope.launch {
                         isConnecting = true
                         status = "Đang tìm thẻ thật nhanh đây..."
+                        rsaStatus = ""
                         val connected = smartCardManager.connectToCard()
-                        if (connected) {
+                        if (!connected) {
+                            status = "Không thấy thẻ đâu "
+                            isConnecting = false
+                            return@launch
+                        }
+
+                        // Admin mode: skip RSA handshake
+                        if (!requireRSAAuth) {
+                            status = "Thẻ đã kết nối"
+                            isConnecting = false
+                            onCardConnected()
+                            return@launch
+                        }
+
+                        status = "Thẻ đã kết nối. Đang kiểm tra RSA..."
+                        val authOk = withContext(Dispatchers.IO) {
+                            try {
+                                val custId = smartCardManager.getCustomerIDRSA()
+                                if (custId.isNullOrBlank()) {
+                                    rsaStatus = "Thẻ chưa có Customer ID. Vào màn Admin RSA để thiết lập."
+                                    return@withContext false
+                                }
+
+                                val rsaReady = smartCardManager.getRSAStatus()
+                                if (!rsaReady) {
+                                    rsaStatus = "Thẻ chưa có RSA key. Vào màn Admin RSA để tạo và upload key."
+                                    return@withContext false
+                                }
+
+                                val challengeDto = rsaApi.getChallenge().getOrElse {
+                                    rsaStatus = it.message ?: "Không lấy được challenge"
+                                    return@withContext false
+                                }
+
+                                val challengeBytes = try {
+                                    Base64.getDecoder().decode(challengeDto.challenge)
+                                } catch (e: Exception) {
+                                    rsaStatus = "Challenge không hợp lệ"
+                                    return@withContext false
+                                }
+
+                                if (challengeBytes.size != 32) {
+                                    rsaStatus = "Challenge phải 32 byte"
+                                    return@withContext false
+                                }
+
+                                val signature = smartCardManager.signChallenge(challengeBytes)
+                                    ?: run {
+                                        rsaStatus = "Không ký được challenge (thiếu RSA key?)"
+                                        return@withContext false
+                                    }
+
+                                val sigB64 = Base64.getEncoder().encodeToString(signature)
+                                val verifyResp = rsaApi.verifySignature(custId, challengeDto.challenge, sigB64).getOrElse {
+                                    rsaStatus = it.message ?: "Lỗi xác thực"
+                                    return@withContext false
+                                }
+
+                                if (verifyResp.success) {
+                                    rsaStatus = "Xác thực RSA thành công"
+                                    true
+                                } else {
+                                    rsaStatus = "Xác thực thất bại: ${verifyResp.message}"
+                                    false
+                                }
+                            } catch (e: Exception) {
+                                rsaStatus = "Lỗi: ${e.message}"
+                                false
+                            }
+                        }
+
+                        if (authOk) {
+                            status = "Đã xác thực thành công"
                             onCardConnected()
                         } else {
-                            status = "Không thấy thẻ đâu "
+                            status = "Kết nối xong nhưng RSA chưa thành công"
+                            // Disconnect card to ensure clean state for next connection
+                            smartCardManager.disconnect()
+                            onRequireRSASetup()
                         }
+
                         isConnecting = false
                     }
                 },
@@ -301,6 +280,23 @@ fun ConnectScreen(
                         modifier = Modifier.padding(16.dp),
                         color = Color(0xFFD32F2F),
                         fontSize = 15.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
+            if (rsaStatus.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                    border = BorderStroke(1.dp, Color(0xFF66BB6A)),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Text(
+                        text = rsaStatus,
+                        modifier = Modifier.padding(16.dp),
+                        color = Color(0xFF2E7D32),
+                        fontSize = 14.sp,
                         textAlign = TextAlign.Center
                     )
                 }

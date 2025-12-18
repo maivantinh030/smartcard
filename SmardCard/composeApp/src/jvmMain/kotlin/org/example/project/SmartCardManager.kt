@@ -88,7 +88,7 @@ class SmartCardManager {
                 return false
             }
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x40, 0x00, 0x00, pinBytes.size. toByte()) + pinBytes
+            val cmd = byteArrayOf(0x80.toByte(), 0x01, 0x00, 0x00, pinBytes.size.toByte()) + pinBytes
             val response = sendCommand(cmd) ?: return false
 
             response.takeLast(2).toByteArray().contentEquals(byteArrayOf(0x90. toByte(), 0x00))
@@ -101,7 +101,7 @@ class SmartCardManager {
     fun verifyPIN(pin: String): Boolean {
         return try {
             val pinBytes = pin.toByteArray()
-            val cmd = byteArrayOf(0x80.toByte(), 0x20, 0x00, 0x00, pinBytes.size. toByte()) + pinBytes
+            val cmd = byteArrayOf(0x80.toByte(), 0x02, 0x00, 0x00, pinBytes.size.toByte()) + pinBytes
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -144,7 +144,7 @@ class SmartCardManager {
                     byteArrayOf(newPinBytes.size.toByte()) +
                     newPinBytes
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x24, 0x00, 0x00, data.size.toByte()) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, data.size.toByte()) + data
             val response = sendCommand(cmd) ?: return false
 
             response.takeLast(2).toByteArray().contentEquals(byteArrayOf(0x90.toByte(), 0x00))
@@ -156,7 +156,7 @@ class SmartCardManager {
 
     fun getPINStatus(): Triple<Int, Boolean, Boolean> {
         return try {
-            val cmd = byteArrayOf(0x80.toByte(), 0x41, 0x00, 0x00, 0x00)
+            val cmd = byteArrayOf(0x80.toByte(), 0x04, 0x00, 0x00, 0x00)
             println("Sending PIN Status Command:  ${cmd.joinToString(" ") { String.format("%02X", it) }}")
             val response = this.sendCommand(cmd) ?: return Triple(-1, false, false)
             println("PIN Status Response: ${response.joinToString(" ") { String.format("%02X", it) }}")
@@ -179,7 +179,7 @@ class SmartCardManager {
 
     fun resetPinCounter(): Boolean {
         return try {
-            val cmd = byteArrayOf(0x80.toByte(), 0x42, 0x00, 0x00, 0x00)
+            val cmd = byteArrayOf(0x80.toByte(), 0x05, 0x00, 0x00, 0x00)
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -199,29 +199,25 @@ class SmartCardManager {
         }
     }
 
-    fun writeCustomerInfo(customerID: String, name: String, dateOfBirth: String, phoneNumber: String): Boolean {
+    fun writeCustomerInfo( name: String, dateOfBirth: String, phoneNumber: String): Boolean {
         return try {
-            // Padded field sizes (AES blocks)
-            val LEN_ID = 16
+            // Padded field sizes (AES blocks) - KHÔNG gồm customerID nữa
             val LEN_NAME = 64
             val LEN_DOB = 16
             val LEN_PHONE = 16
-            val data = ByteArray(LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE) // 112 bytes
+            val data = ByteArray(LEN_NAME + LEN_DOB + LEN_PHONE) // 96 bytes (không có customerID 16 bytes)
 
-            // Copy and leave remaining bytes as 0 (already zero-initialized)
-            val idBytes = customerID.toByteArray(Charsets.UTF_8)
-            idBytes.copyInto(data, 0, 0, minOf(idBytes.size, LEN_ID))
-
+            // Copy và để remaining bytes là 0
             val nameBytes = name.toByteArray(Charsets.UTF_8)
-            nameBytes.copyInto(data, LEN_ID, 0, minOf(nameBytes.size, LEN_NAME))
+            nameBytes.copyInto(data, 0, 0, minOf(nameBytes.size, LEN_NAME))
 
             val dobBytes = dateOfBirth.toByteArray(Charsets.UTF_8)
-            dobBytes.copyInto(data, LEN_ID + LEN_NAME, 0, minOf(dobBytes.size, LEN_DOB))
+            dobBytes.copyInto(data, LEN_NAME, 0, minOf(dobBytes.size, LEN_DOB))
 
             val phoneBytes = phoneNumber.toByteArray(Charsets.UTF_8)
-            phoneBytes.copyInto(data, LEN_ID + LEN_NAME + LEN_DOB, 0, minOf(phoneBytes.size, LEN_PHONE))
+            phoneBytes.copyInto(data, LEN_NAME + LEN_DOB, 0, minOf(phoneBytes.size, LEN_PHONE))
 
-            val command = byteArrayOf(0x80.toByte(), 0x01, 0x00, 0x00, data.size.toByte()) + data
+            val command = byteArrayOf(0x80.toByte(), 0x07, 0x00, 0x00, data.size.toByte()) + data
             val response = this.sendCommand(command)
             response?.takeLast(2)?.toByteArray()?.contentEquals(byteArrayOf(0x90.toByte(), 0x00)) ?: false
         } catch (e: Exception) {
@@ -231,37 +227,47 @@ class SmartCardManager {
     }
 
     fun startPhotoWrite(): Boolean {
-        val command = byteArrayOf(0x80.toByte(), 0x04, 0x00, 0x00, 0x00)
+        val command = byteArrayOf(0x80.toByte(), 0x08, 0x00, 0x00, 0x00)
         val response = this.sendCommand(command) ?: return false
         println(response)
         return response.takeLast(2).toByteArray().contentEquals(byteArrayOf(0x90.toByte(), 0x00. toByte()))
     }
 
     fun writePhotoChunk(photoChunk: ByteArray): Boolean {
-        val command = byteArrayOf(0x80.toByte(), 0x02, 0x00, 0x00, photoChunk.size.toByte()) + photoChunk
+        val command = byteArrayOf(0x80.toByte(), 0x09, 0x00, 0x00, photoChunk.size.toByte()) + photoChunk
         val response = this.sendCommand(command) ?: return false
         println(response)
         return response.takeLast(2).toByteArray().contentEquals(byteArrayOf(0x90.toByte(), 0x00.toByte()))
     }
 
+    fun finishPhotoWrite(): Boolean {
+        val command = byteArrayOf(0x80.toByte(), 0x0A, 0x00, 0x00, 0x00)
+        val response = this.sendCommand(command) ?: return false
+        return response.takeLast(2).toByteArray().contentEquals(byteArrayOf(0x90.toByte(), 0x00.toByte()))
+    }
+
     fun writeCustomerImage(imageData: ByteArray): Boolean {
-        if (! startPhotoWrite()) {
-            println("Failed to start photo write!")
+        println("🖼️ Bắt đầu ghi ảnh (${imageData.size} bytes)...")
+        if (!startPhotoWrite()) {
+            println("❌ Không thể khởi tạo ghi ảnh!")
             return false
         }
         val chunkSize = 200
         var offset = 0
+        var chunkCount = 0
         while (offset < imageData.size) {
             val end = minOf(offset + chunkSize, imageData.size)
             val chunk = imageData.copyOfRange(offset, end)
+            println("  📤 Ghi chunk ${++chunkCount}: offset=$offset, size=${chunk.size}")
             val ok = writePhotoChunk(chunk)
             if (!ok) {
-                println("Failed writing chunk at offset $offset")
+                println("  ❌ Lỗi ghi chunk tại offset $offset")
                 return false
             }
             offset = end
         }
-        val finishCmd = byteArrayOf(0x80.toByte(), 0x06, 0x00, 0x00, 0x00)
+        println("  ✅ Đã ghi xong tất cả chunks")
+        val finishCmd = byteArrayOf(0x80.toByte(), 0x0A, 0x00, 0x00, 0x00)
         val finishResponse = sendCommand(finishCmd) ?: return false
         val finishOk = finishResponse.takeLast(2).toByteArray()
             .contentEquals(byteArrayOf(0x90.toByte(), 0x00))
@@ -276,24 +282,28 @@ class SmartCardManager {
     // ✅ HÀM MỚI: Đọc thông tin khách hàng
     fun readCustomerInfo(): Map<String, String> {
         return try {
-            val LEN_ID = 16
+            val LEN_ID = 15
             val LEN_NAME = 64
             val LEN_DOB = 16
             val LEN_PHONE = 16
             val INFO_LEN = LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE + 2 // +2 for photoLength
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, INFO_LEN.toByte()) // expect 0x72 bytes
-            val response = sendCommand(cmd) ?: return emptyMap()
+            println("📖 Đọc thông tin khách hàng (INFO_LEN=$INFO_LEN)...")
+            val cmd = byteArrayOf(0x80.toByte(), 0x0B, 0x00, 0x00, INFO_LEN.toByte()) // expect 0x72 bytes
+            val response = sendCommand(cmd) ?: run {
+                println("❌ Lệnh đọc thông tin thất bại")
+                return emptyMap()
+            }
 
             val sw = getStatusWord(response)
             if (sw != 0x9000) {
-                println("Failed to read customer info: SW=${sw.toString(16)}")
+                println("❌ Status word lỗi: 0x${sw.toString(16)}")
                 return emptyMap()
             }
 
             val data = response.dropLast(2).toByteArray()
             if (data.size < INFO_LEN) {
-                println("Invalid data size: ${data.size}")
+                println("❌ Dữ liệu không đủ: ${data.size} < $INFO_LEN")
                 return emptyMap()
             }
 
@@ -311,6 +321,8 @@ class SmartCardManager {
             val photoLengthLow = data[pos + 1].toInt() and 0xFF
             val photoLength = (photoLengthHigh shl 8) or photoLengthLow
 
+            println("✅ Đã đọc thông tin: name='$name', photo=$photoLength bytes")
+
             mapOf(
                 "customerID" to customerID,
                 "name" to name,
@@ -319,16 +331,16 @@ class SmartCardManager {
                 "photoLength" to photoLength.toString()
             )
         } catch (e: Exception) {
-            println("Error reading customer info: ${e.message}")
+            println("❌ Lỗi đọc thông tin: ${e.message}")
             emptyMap()
         }
     }
     // ✅ HÀM DEBUG - Kiểm tra photoLength
     fun debugPhotoInfo() {
         try {
-            val LEN_ID = 16; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
+            val LEN_ID = 15; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
             val INFO_LEN = LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE + 2
-            val cmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, INFO_LEN.toByte())
+            val cmd = byteArrayOf(0x80.toByte(), 0x0B, 0x00, 0x00, INFO_LEN.toByte())
             val response = sendCommand(cmd)
 
             if (response != null && response.size >= INFO_LEN + 2) {
@@ -351,14 +363,20 @@ class SmartCardManager {
     // ✅ HÀM MỚI:  Đọc ảnh khách hàng
     fun readCustomerImage(): ByteArray? {
         return try {
-            val LEN_ID = 16; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
+            val LEN_ID = 15  // ✅ FIX: Match với readCustomerInfo()
+            val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
             val INFO_LEN = LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE + 2
 
-            val infoCmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, INFO_LEN.toByte())
-            val infoResponse = sendCommand(infoCmd) ?: return null
+            println("📸 Đọc info để lấy photo length...")
+            val infoCmd = byteArrayOf(0x80.toByte(), 0x0B, 0x00, 0x00, INFO_LEN.toByte())
+            val infoResponse = sendCommand(infoCmd) ?: run {
+                println("❌ Lệnh đọc info thất bại")
+                return null
+            }
 
+            println("📦 Info response size: ${infoResponse.size}")
             if (infoResponse.size < INFO_LEN + 2) {
-                println("❌ Response too small: ${infoResponse.size} < ${INFO_LEN + 2}")
+                println("❌ Response quá nhỏ: ${infoResponse.size} < ${INFO_LEN + 2}")
                 return null
             }
 
@@ -368,12 +386,14 @@ class SmartCardManager {
             val photoLengthLow = data[pos + 1].toInt() and 0xFF
             val photoLength = (photoLengthHigh shl 8) or photoLengthLow
 
+            println("🖼️ Photo length từ card: $photoLength bytes (high=$photoLengthHigh, low=$photoLengthLow)")
+
             if (photoLength == 0) {
-                println("⚠️ Photo length is 0 - no photo on card")
+                println("⚠️ Không có ảnh trên thẻ")
                 return null
             }
             if (photoLength > 8000) {
-                println("⚠️ Photo length too large: $photoLength > 8000")
+                println("⚠️ Kích thước ảnh quá lớn: $photoLength > 8000")
                 return null
             }
 
@@ -381,26 +401,46 @@ class SmartCardManager {
             var offset = 0
             val chunkSize = 200
 
+            println("🔄 Bắt đầu đọc ảnh từ thẻ...")
             while (offset < photoLength) {
                 val p1 = (offset shr 8).toByte()
                 val p2 = (offset and 0xFF).toByte()
                 val requestSize = minOf(chunkSize, photoLength - offset)
 
-                val readCmd = byteArrayOf(0x80.toByte(), 0x05, p1, p2, requestSize.toByte())
-                val response = sendCommand(readCmd) ?: break
+                println("  📥 Đọc chunk: offset=$offset, size=$requestSize")
+                val readCmd = byteArrayOf(0x80.toByte(), 0x0C, p1, p2, requestSize.toByte())
+                val response = sendCommand(readCmd)
+                
+                if (response == null) {
+                    println("  ❌ Chunk response null")
+                    break
+                }
+
                 val sw = getStatusWord(response)
-                if (sw != 0x9000) break
+                println("  Status word: 0x${sw.toString(16).padStart(4, '0')}")
+                
+                if (sw != 0x9000) {
+                    println("  ❌ Lỗi đọc chunk")
+                    break
+                }
 
                 val chunk = response.dropLast(2).toByteArray()
-                if (chunk.isEmpty()) break
+                println("  ✅ Đã đọc ${chunk.size} bytes")
+                
+                if (chunk.isEmpty()) {
+                    println("  ❌ Chunk rỗng")
+                    break
+                }
 
                 photoData.addAll(chunk.toList())
                 offset += chunk.size
             }
 
+            println("✅ Đã đọc xong ảnh: ${photoData.size} bytes")
             if (photoData.isEmpty()) null else photoData.toByteArray()
         } catch (e: Exception) {
-            println("❌ Exception reading photo: ${e.message}")
+            println("❌ Exception đọc ảnh: ${e.message}")
+            e.printStackTrace()
             null
         }
     }
@@ -422,9 +462,9 @@ class SmartCardManager {
     }
 
     private fun readCustomerBasicInfo(): ByteArray? {
-        val LEN_ID = 16; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
+        val LEN_ID = 15; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
         val INFO_LEN = LEN_ID + LEN_NAME + LEN_DOB + LEN_PHONE + 2
-        val readCmd = byteArrayOf(0x80.toByte(), 0x03, 0x00, 0x00, INFO_LEN.toByte())
+        val readCmd = byteArrayOf(0x80.toByte(), 0x0B, 0x00, 0x00, INFO_LEN.toByte())
         val response = sendCommand(readCmd) ?: return null
 
         val sw = getStatusWord(response)
@@ -449,7 +489,7 @@ class SmartCardManager {
                 val p2 = offset and 0xFF
 
                 val chunkCmd = byteArrayOf(
-                    0x80.toByte(), 0x05,
+                    0x80.toByte(), 0x0C,
                     p1.toByte(), p2.toByte(),
                     chunkSize.toByte()
                 )
@@ -546,7 +586,7 @@ class SmartCardManager {
                 (amount and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x50, 0x00, 0x00, 0x02) + amountBytes
+            val cmd = byteArrayOf(0x80.toByte(), 0x0D, 0x00, 0x00, 0x02) + amountBytes
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -568,7 +608,7 @@ class SmartCardManager {
 
     fun checkBalance(): Int {
         return try {
-            val cmd = byteArrayOf(0x80.toByte(), 0x51, 0x00, 0x00, 0x02)
+            val cmd = byteArrayOf(0x80.toByte(), 0x0E, 0x00, 0x00, 0x02)
             val response = sendCommand(cmd) ?: return -1
 
             val sw = getStatusWord(response)
@@ -599,7 +639,7 @@ class SmartCardManager {
                 (amount and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x52, 0x00, 0x00, 0x02) + amountBytes
+            val cmd = byteArrayOf(0x80.toByte(), 0x0F, 0x00, 0x00, 0x02) + amountBytes
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -627,7 +667,7 @@ class SmartCardManager {
 
     fun readGames(): List<GameEntry> {
         return try {
-            val cmd = byteArrayOf(0x80.toByte(), 0x82.toByte(), 0x00, 0x00, 0x00)
+            val cmd = byteArrayOf(0x80.toByte(), 0x13, 0x00, 0x00, 0x00)
             val response = sendCommand(cmd) ?: return emptyList()
 
             val sw = getStatusWord(response)
@@ -685,7 +725,7 @@ class SmartCardManager {
                 (gameCode and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x80.toByte(), 0x00, 0x00, 0x03) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x11, 0x00, 0x00, 0x03) + data
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -718,7 +758,7 @@ class SmartCardManager {
                 tickets.toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x81.toByte(), 0x00, 0x00, 0x03) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x12, 0x00, 0x00, 0x03) + data
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -755,7 +795,7 @@ class SmartCardManager {
                 newTickets.toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x83.toByte(), 0x00, 0x00, 0x03) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x14, 0x00, 0x00, 0x03) + data
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -782,7 +822,7 @@ class SmartCardManager {
                 (gameCode and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x84.toByte(), 0x00, 0x00, 0x02) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x15, 0x00, 0x00, 0x02) + data
             val response = sendCommand(cmd) ?: return null
 
             val sw = getStatusWord(response)
@@ -821,7 +861,7 @@ class SmartCardManager {
                 (gameCode and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x85.toByte(), 0x00, 0x00, 0x02) + data
+            val cmd = byteArrayOf(0x80.toByte(), 0x16, 0x00, 0x00, 0x02) + data
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
@@ -845,5 +885,181 @@ class SmartCardManager {
         }
     }
 
+    // ==================== RSA AUTHENTICATION ====================
+
+    /**
+     * Set Customer ID for RSA authentication (plain text, max 15 bytes)
+     * INS: 0x90
+     */
+    fun setCustomerID(customerId: String): Boolean {
+        return try {
+            val idBytes = customerId.toByteArray().take(15).toByteArray()
+            val cmd = byteArrayOf(0x80.toByte(), 0x17, 0x00, 0x00, idBytes.size.toByte()) + idBytes
+            val response = sendCommand(cmd) ?: return false
+            
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Customer ID set successfully")
+                    true
+                }
+                else -> {
+                    println("Failed to set customer ID: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error setting customer ID: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Get Customer ID (no PIN required, plain text)
+     * INS: 0x91
+     */
+    fun getCustomerIDRSA(): String? {
+        return try {
+            val cmd = byteArrayOf(0x80.toByte(), 0x18, 0x00, 0x00, 0x0F) // 15 bytes
+            val response = sendCommand(cmd) ?: return null
+            
+            val sw = getStatusWord(response)
+            if (sw == 0x9000) {
+                val idBytes = response.dropLast(2).toByteArray()
+                String(idBytes).trim('\u0000', ' ')
+            } else {
+                println("Failed to get customer ID: SW=${sw.toString(16)}")
+                null
+            }
+        } catch (e: Exception) {
+            println("Error getting customer ID: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Set RSA private key exponent (128 bytes for RSA-1024)
+     * INS: 0x92
+     */
+    fun setRSAExponent(exponent: ByteArray): Boolean {
+        return try {
+            if (exponent.size != 128) {
+                println("RSA exponent must be 128 bytes, got ${exponent.size}")
+                return false
+            }
+            
+            val cmd = byteArrayOf(0x80.toByte(), 0x19, 0x00, 0x00, 0x80.toByte()) + exponent
+            val response = sendCommand(cmd) ?: return false
+            
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("RSA exponent set successfully")
+                    true
+                }
+                else -> {
+                    println("Failed to set RSA exponent: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error setting RSA exponent: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Set RSA private key modulus (128 bytes for RSA-1024)
+     * INS: 0x93
+     */
+    fun setRSAModulus(modulus: ByteArray): Boolean {
+        return try {
+            if (modulus.size != 128) {
+                println("RSA modulus must be 128 bytes, got ${modulus.size}")
+                return false
+            }
+            
+            val cmd = byteArrayOf(0x80.toByte(), 0x1A, 0x00, 0x00, 0x80.toByte()) + modulus
+            val response = sendCommand(cmd) ?: return false
+            
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("RSA modulus set successfully")
+                    true
+                }
+                else -> {
+                    println("Failed to set RSA modulus: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error setting RSA modulus: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Sign a challenge with RSA private key (SHA1withRSA)
+     * INS: 0x94
+     * Input: 32 bytes challenge
+     * Output: 128 bytes signature (RSA-1024)
+     */
+    fun signChallenge(challenge: ByteArray): ByteArray? {
+        return try {
+            if (challenge.size != 32) {
+                println("Challenge must be 32 bytes, got ${challenge.size}")
+                return null
+            }
+            
+            // Card expects exactly 32 bytes in the incoming buffer; no Le byte is needed.
+            val cmd = byteArrayOf(0x80.toByte(), 0x1B, 0x00, 0x00, 0x20) + challenge
+            val response = sendCommand(cmd) ?: return null
+            
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    val signature = response.dropLast(2).toByteArray()
+                    println("Challenge signed successfully, signature size: ${signature.size}")
+                    signature
+                }
+                0x6A88 -> {
+                    println("RSA not ready (keys not set)")
+                    null
+                }
+                else -> {
+                    println("Failed to sign challenge: SW=${sw.toString(16)}")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            println("Error signing challenge: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Get RSA status (check if keys are configured)
+     * INS: 0x95
+     * Returns: true if RSA ready, false otherwise
+     */
+    fun getRSAStatus(): Boolean {
+        return try {
+            val cmd = byteArrayOf(0x80.toByte(), 0x1C, 0x00, 0x00, 0x01)
+            val response = sendCommand(cmd) ?: return false
+            
+            val sw = getStatusWord(response)
+            if (sw == 0x9000) {
+                val status = response.dropLast(2).firstOrNull() ?: 0x00
+                status.toInt() == 0x01
+            } else {
+                println("Failed to get RSA status: SW=${sw.toString(16)}")
+                false
+            }
+        } catch (e: Exception) {
+            println("Error getting RSA status: ${e.message}")
+            false
+        }
+    }
 
 }

@@ -26,17 +26,26 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.example.project.SmartCardManager
+import org.example.project.config.ServerConfig
 import org.example.project.screen.FloatingBubbles
 import java.awt.FileDialog
 import java.awt.Frame
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.security.KeyPairGenerator
+import java.security.SecureRandom
+import java.security.interfaces.RSAPrivateKey
+import java.security.interfaces.RSAPublicKey
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Base64
 import javax.imageio.ImageIO
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,15 +54,13 @@ fun AdminWriteInfoScreen(
     smartCardManager: SmartCardManager,
     onBack: () -> Unit
 ) {
-    // ✅ PREFIX TỰ ĐỘNG
-    val datePrefix = remember {
-        val now = LocalDate.now()
-        val formatter = DateTimeFormatter.ofPattern("ddMMyy")
+    // ✅ TỰ ĐỘNG TẠO CUSTOMER ID (ddMMyy + HHmmss)
+    val customerID = remember {
+        val now = LocalDateTime.now()
+        val formatter = DateTimeFormatter.ofPattern("ddMMyyHHmmss")
         "KH${now.format(formatter)}"
     }
 
-    var customerID by remember { mutableStateOf(datePrefix) }
-    var customerSuffix by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
 
     // ✅ SỬA:  Dùng TextFieldValue để quản lý cursor
@@ -149,7 +156,7 @@ fun AdminWriteInfoScreen(
                                 Text("🏷️", fontSize = 16.sp)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Mã hôm nay: $datePrefix",
+                                    text = "Mã hôm nay: KH",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = Color.White. copy(alpha = 0.95f)
@@ -403,43 +410,42 @@ fun AdminWriteInfoScreen(
 
                     Spacer(modifier = Modifier. height(20.dp))
 
-                    // MÃ KHÁCH HÀNG
-                    OutlinedTextField(
-                        value = customerSuffix,
-                        onValueChange = {
-                            if (it.all { c -> c.isDigit() }) {
-                                customerSuffix = it
-                                customerID = datePrefix + it
-                            }
-                        },
-                        label = { Text("Mã khách hàng", fontWeight = FontWeight.Medium) },
-                        leadingIcon = {
+                    // MÃ KHÁCH HÀNG (TỰ ĐỘNG)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFE8F5E9)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Badge,
                                 contentDescription = null,
-                                tint = Color(0xFF667EEA)
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(24.dp)
                             )
-                        },
-                        prefix = {
-                            Text(
-                                text = datePrefix,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = Color(0xFF667EEA)
-                            )
-                        },
-                        placeholder = { Text("001", color = Color. Gray) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF667EEA),
-                            focusedLabelColor = Color(0xFF667EEA),
-                            focusedLeadingIconColor = Color(0xFF667EEA),
-                            cursorColor = Color(0xFF667EEA)
-                        )
-                    )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Mã khách hàng (tự động)",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF666666)
+                                )
+                                Text(
+                                    text = customerID,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF4CAF50)
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(18.dp))
 
@@ -607,7 +613,7 @@ fun AdminWriteInfoScreen(
 
                                 try {
                                     val writeSuccess = smartCardManager.writeCustomerInfo(
-                                        customerID, name, dateOfBirth, phoneNumber
+                                         name, dateOfBirth, phoneNumber
                                     )
 
                                     if (! writeSuccess) {
@@ -657,8 +663,11 @@ fun AdminWriteInfoScreen(
                                         uploadProgress = 0.9f
                                         delay(200)
 
-                                        val finishCmd = byteArrayOf(0x80. toByte(), 0x06, 0x00, 0x00, 0x00)
-                                        smartCardManager.sendCommand(finishCmd)
+                                        if (!smartCardManager.finishPhotoWrite()) {
+                                            status = "❌ Lỗi hoàn tất upload ảnh"
+                                            isWriting = false
+                                            return@launch
+                                        }
 
                                         uploadProgress = 1.0f
                                         delay(300)
@@ -669,7 +678,68 @@ fun AdminWriteInfoScreen(
                                     }
 
                                     delay(1000)
-                                    status = "✅ Hoàn tất!  Đã ghi ${if (imageData != null) "thông tin + ảnh" else "thông tin"}"
+                                    
+                                    // ✅ TẠO VÀ UPLOAD RSA KEY
+                                    status = "🔐 Đang tạo RSA key..."
+                                    delay(300)
+                                    
+                                    try {
+                                        // Set Customer ID for RSA
+                                        if (!smartCardManager.setCustomerID(customerID)) {
+                                            status = "⚠️ Không thể set Customer ID cho RSA"
+                                        } else {
+                                            // Generate RSA-1024 keypair
+                                            val keyGen = KeyPairGenerator.getInstance("RSA")
+                                            keyGen.initialize(1024, SecureRandom())
+                                            val keyPair = keyGen.generateKeyPair()
+                                            
+                                            val privateKey = keyPair.private as RSAPrivateKey
+                                            val publicKey = keyPair.public as RSAPublicKey
+                                            
+                                            // Extract modulus and exponent (128 bytes each for RSA-1024)
+                                            val modulusBytes = privateKey.modulus.toByteArray()
+                                            val exponentBytes = privateKey.privateExponent.toByteArray()
+                                            
+                                            // Pad or trim to exactly 128 bytes
+                                            val modulusPadded = ByteArray(128)
+                                            val exponentPadded = ByteArray(128)
+                                            
+                                            val modulusStart = maxOf(0, modulusBytes.size - 128)
+                                            val modulusLength = minOf(128, modulusBytes.size)
+                                            System.arraycopy(modulusBytes, modulusStart, modulusPadded, 128 - modulusLength, modulusLength)
+                                            
+                                            val exponentStart = maxOf(0, exponentBytes.size - 128)
+                                            val exponentLength = minOf(128, exponentBytes.size)
+                                            System.arraycopy(exponentBytes, exponentStart, exponentPadded, 128 - exponentLength, exponentLength)
+                                            
+                                            status = "📤 Đang upload private key lên thẻ..."
+                                            delay(300)
+                                            
+                                            // Upload private key to card
+                                            val expSuccess = smartCardManager.setRSAExponent(exponentPadded)
+                                            val modSuccess = smartCardManager.setRSAModulus(modulusPadded)
+                                            
+                                            if (expSuccess && modSuccess) {
+                                                // Save public key to server
+                                                status = "💾 Đang lưu public key lên server..."
+                                                delay(300)
+                                                
+                                                val publicKeyPEM = publicKeyToPEM(publicKey)
+                                                val registerSuccess = registerPublicKeyToServer(customerID, publicKeyPEM)
+                                                
+                                                if (registerSuccess) {
+                                                    status = "✅ Hoàn tất! Đã ghi ${if (imageData != null) "thông tin + ảnh + RSA key" else "thông tin + RSA key"}"
+                                                } else {
+                                                    status = "⚠️ Đã upload key lên thẻ nhưng lỗi lưu public key lên server"
+                                                }
+                                            } else {
+                                                status = "⚠️ Ghi thông tin thành công nhưng lỗi upload RSA key"
+                                            }
+                                        }
+                                    } catch (rsaException: Exception) {
+                                        status = "⚠️ Ghi thông tin thành công nhưng lỗi tạo RSA: ${rsaException.message}"
+                                        rsaException.printStackTrace()
+                                    }
 
                                 } catch (e: Exception) {
                                     status = "❌ Lỗi:  ${e.message}"
@@ -786,4 +856,70 @@ private fun BufferedImage.toComposeImageBitmap(): ImageBitmap {
     ImageIO.write(this, "PNG", baos)
     val bytes = baos.toByteArray()
     return org.jetbrains.skia.Image.makeFromEncoded(bytes).toComposeImageBitmap()
+}
+
+/**
+ * Convert RSA public key to PEM format
+ */
+private fun publicKeyToPEM(publicKey: RSAPublicKey): String {
+    val encoded = publicKey.encoded
+    val base64 = Base64.getEncoder().encodeToString(encoded)
+    val pem = StringBuilder()
+    pem.append("-----BEGIN PUBLIC KEY-----\n")
+    
+    // Split into 64-character lines
+    var index = 0
+    while (index < base64.length) {
+        val end = minOf(index + 64, base64.length)
+        pem.append(base64.substring(index, end))
+        pem.append("\n")
+        index = end
+    }
+    
+    pem.append("-----END PUBLIC KEY-----")
+    return pem.toString()
+}
+
+/**
+ * Register public key to server
+ */
+private suspend fun registerPublicKeyToServer(customerId: String, publicKeyPEM: String): Boolean {
+    return withContext(Dispatchers.IO) {
+        try {
+            val url = java.net.URL("${ServerConfig.baseUrl}/rsa/register-key")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.doOutput = true
+            
+            val jsonPayload = """
+                {
+                    "customerId": "$customerId",
+                    "publicKey": "${publicKeyPEM.replace("\n", "\\n")}"
+                }
+            """.trimIndent()
+            
+            connection.outputStream.use { os ->
+                os.write(jsonPayload.toByteArray())
+            }
+            
+            val responseCode = connection.responseCode
+            val stream = try {
+                if (responseCode in 200..299) connection.inputStream else connection.errorStream
+            } catch (e: Exception) { null }
+            val responseBody = stream?.bufferedReader()?.use { it.readText() }
+
+            println("Register public key response: $responseCode")
+            if (!responseBody.isNullOrBlank()) {
+                println("Register public key body: $responseBody")
+            }
+
+            (responseCode == 201 || responseCode == 200)
+        } catch (e: Exception) {
+            println("Error registering public key: ${e.message}")
+            e.printStackTrace()
+            false
+        }
+    }
 }
