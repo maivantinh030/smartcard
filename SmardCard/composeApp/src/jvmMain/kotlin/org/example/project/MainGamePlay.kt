@@ -152,20 +152,6 @@ private fun GamePlayScreen(
                 println("Code: ${game.gameCode}")
                 println("───────────────────────────────────")
 
-                // Verify PIN trước
-                statusMessage = "⏳ Đang xác thực..."
-                println("🔐 Xác thực PIN...")
-                if (!smartCardManager.verifyPIN("1234")) {
-                    println("❌ PIN xác thực thất bại!")
-                    statusMessage = "❌ PIN SAI!\n\nKhông thể truy cập thẻ"
-                    delay(3000)
-                    smartCardManager.disconnect()
-                    println("═══════════════════════════════════")
-                    onComplete()
-                    return@launch
-                }
-                println("✅ PIN xác thực thành công")
-
                 // Tìm game cụ thể trên thẻ
                 statusMessage = "⏳ Đang kiểm tra lượt chơi..."
                 println("🔍 Tìm game code: ${game.gameCode}")

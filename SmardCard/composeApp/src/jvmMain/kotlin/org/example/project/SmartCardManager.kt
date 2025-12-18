@@ -725,8 +725,10 @@ class SmartCardManager {
                 (gameCode and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x11, 0x00, 0x00, 0x03) + data
+            val cmd = byteArrayOf(0x00, 0x11, 0x00, 0x00, 0x03) + data
+            println("APDU >> ${cmd.joinToString(" ") { String.format("%02X", it) }}")
             val response = sendCommand(cmd) ?: return false
+            println("APDU << ${response.joinToString(" ") { String.format("%02X", it) }}")
 
             val sw = getStatusWord(response)
             when (sw) {
@@ -758,8 +760,10 @@ class SmartCardManager {
                 tickets.toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x12, 0x00, 0x00, 0x03) + data
+            val cmd = byteArrayOf(0x00, 0x12, 0x00, 0x00, 0x03) + data
+            println("APDU >> ${cmd.joinToString(" ") { String.format("%02X", it) }}")
             val response = sendCommand(cmd) ?: return false
+            println("APDU << ${response.joinToString(" ") { String.format("%02X", it) }}")
 
             val sw = getStatusWord(response)
             when (sw) {
@@ -795,8 +799,10 @@ class SmartCardManager {
                 newTickets.toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x14, 0x00, 0x00, 0x03) + data
+            val cmd = byteArrayOf(0x00, 0x14, 0x00, 0x00, 0x03) + data
+            println("APDU >> ${cmd.joinToString(" ") { String.format("%02X", it) }}")
             val response = sendCommand(cmd) ?: return false
+            println("APDU << ${response.joinToString(" ") { String.format("%02X", it) }}")
 
             val sw = getStatusWord(response)
             when (sw) {
@@ -822,8 +828,10 @@ class SmartCardManager {
                 (gameCode and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x15, 0x00, 0x00, 0x02) + data
+            val cmd = byteArrayOf(0x00, 0x15, 0x00, 0x00, 0x02) + data
+            println("APDU >> ${cmd.joinToString(" ") { String.format("%02X", it) }}")
             val response = sendCommand(cmd) ?: return null
+            println("APDU << ${response.joinToString(" ") { String.format("%02X", it) }}")
 
             val sw = getStatusWord(response)
             if (sw != 0x9000) {
@@ -861,8 +869,10 @@ class SmartCardManager {
                 (gameCode and 0xFF).toByte()
             )
 
-            val cmd = byteArrayOf(0x80.toByte(), 0x16, 0x00, 0x00, 0x02) + data
+            val cmd = byteArrayOf(0x00, 0x16, 0x00, 0x00, 0x02) + data
+            println("APDU >> ${cmd.joinToString(" ") { String.format("%02X", it) }}")
             val response = sendCommand(cmd) ?: return false
+            println("APDU << ${response.joinToString(" ") { String.format("%02X", it) }}")
 
             val sw = getStatusWord(response)
             when (sw) {

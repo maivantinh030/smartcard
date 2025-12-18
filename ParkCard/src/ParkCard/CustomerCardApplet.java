@@ -78,31 +78,82 @@ public class CustomerCardApplet extends Applet {
             case INS_GET_CRYPTO_INFO: getCryptoInfo(apdu); break;
             
             // Commands cn authentication v� encryption
-            case INS_WRITE_INFO: requireAuthenticated(); model.writeCustomerInfo(apdu, cryptoMgr); break;
-            case INS_START_PHOTO_WRITE: requireAuthenticated(); model.startPhotoWrite(); break;
-            case INS_WRITE_PHOTO_CHUNK: requireAuthenticated(); model.writePhotoChunk(apdu); break;
-            case INS_FINISH_PHOTO_WRITE: requireAuthenticated(); model.finishPhotoWrite(apdu); break;
-            case INS_READ_INFO: requireAuthenticated(); model.readAllData(apdu, cryptoMgr); break;
-            case INS_READ_PHOTO_CHUNK: requireAuthenticated(); model.readPhotoChunk(apdu); break;
-            case INS_RECHARGE_BALANCE: requireAuthenticated(); model.rechargeBalance(apdu, cryptoMgr); break;
-            case INS_CHECK_BALANCE: requireAuthenticated(); model.checkBalance(apdu, cryptoMgr); break;
-            case INS_MAKE_PAYMENT: requireAuthenticated(); model.makePayment(apdu, cryptoMgr); break;
+            case INS_WRITE_INFO:
+            	requireAuthenticated();
+            	model.writeCustomerInfo(apdu, cryptoMgr); 
+            	break;
+            case INS_START_PHOTO_WRITE: 
+            	requireAuthenticated(); 
+            	model.startPhotoWrite(); 
+            	break;
+            case INS_WRITE_PHOTO_CHUNK: 
+            	requireAuthenticated(); 
+            	model.writePhotoChunk(apdu); 
+            	break;
+            case INS_FINISH_PHOTO_WRITE: 
+            	requireAuthenticated(); 
+            	model.finishPhotoWrite(apdu); 
+            	break;
+            case INS_READ_INFO: 
+            	requireAuthenticated(); 
+            	model.readAllData(apdu, cryptoMgr); 
+            	break;
+            case INS_READ_PHOTO_CHUNK: 
+            	requireAuthenticated(); 
+            	model.readPhotoChunk(apdu); 
+            	break;
+            case INS_RECHARGE_BALANCE: 
+            	requireAuthenticated(); 
+            	model.rechargeBalance(apdu, cryptoMgr); 
+            	break;
+            case INS_CHECK_BALANCE: 
+            	requireAuthenticated(); 
+            	model.checkBalance(apdu, cryptoMgr); 
+            	break;
+            case INS_MAKE_PAYMENT: 
+            	requireAuthenticated(); 
+            	model.makePayment(apdu, cryptoMgr); 
+            	break;
             
             // Game commands kh�ng cn encryption
-            case INS_ADD_OR_INCREASE_TICKETS: requireAuthenticated(); gameMgr.addOrIncreaseTickets(apdu); break;
-            case INS_DECREASE_GAME_TICKETS:  gameMgr.decreaseGameTickets(apdu); break;
-            case INS_READ_GAMES:  gameMgr.readGames(apdu); break;
-            case INS_UPDATE_GAME_TICKETS:  gameMgr.updateGameTickets(apdu); break;
-            case INS_FIND_GAME:  gameMgr.findGame(apdu); break;
-            case INS_REMOVE_GAME:  gameMgr.removeGame(apdu); break;
-            
-            case INS_SET_CUSTOMER_ID: setCustomerID(apdu); break;
-            case INS_GET_CUSTOMER_ID: getCustomerID(apdu); break;
-            case INS_SET_RSA_EXPONENT: setRSAExponent(apdu); break;
-            case INS_SET_RSA_MODULUS: setRSAModulus(apdu); break;
-            case INS_SIGN_CHALLENGE: signChallenge(apdu); break;
-            case INS_GET_RSA_STATUS: getRSAStatus(apdu); break;
-            
+            case INS_ADD_OR_INCREASE_TICKETS: 
+            	// requireAuthenticated(); 
+            	gameMgr.addOrIncreaseTickets(apdu); 
+            	break;
+            case INS_DECREASE_GAME_TICKETS:  
+            	gameMgr.decreaseGameTickets(apdu); 
+            	break;
+            case INS_READ_GAMES:  
+            	gameMgr.readGames(apdu); 
+            	break;
+            case INS_UPDATE_GAME_TICKETS:  
+            	gameMgr.updateGameTickets(apdu); 
+            	break;
+            case INS_FIND_GAME:  
+            	gameMgr.findGame(apdu); 
+            	break;
+            case INS_REMOVE_GAME:  
+            	gameMgr.removeGame(apdu); 
+            	break;
+           
+            case INS_SET_CUSTOMER_ID: 
+            	setCustomerID(apdu);
+            	break;
+            case INS_GET_CUSTOMER_ID: 
+            	getCustomerID(apdu); 
+            	break;
+            case INS_SET_RSA_EXPONENT: 
+            	setRSAExponent(apdu); 
+            	break;
+            case INS_SET_RSA_MODULUS: 
+            	setRSAModulus(apdu); 
+            	break;
+            case INS_SIGN_CHALLENGE: 
+            	signChallenge(apdu); 
+            	break;
+            case INS_GET_RSA_STATUS: 
+            	getRSAStatus(apdu); 
+            	break;
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
