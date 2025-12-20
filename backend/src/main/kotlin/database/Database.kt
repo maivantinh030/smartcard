@@ -58,7 +58,7 @@ private fun initializeSampleData() {
         AdminAccounts.insert {
             it[adminId] = "ADM001"
             it[username] = "admin"
-            it[passwordHash] = "\$2a\$12\$rJW1G5Y5dF9p5YqF5YqF5u.qF5YqF5YqF5YqF5YqF5YqF5YqF5YqF5" // password: admin123
+            it[passwordHash] = "\$2a\$10\$ThMV9MU03gbKqqhyK66C/ukmoKAccC84RP10NoeBuuK7izYKDFr6C" // password: admin123
             it[fullName] = "System Administrator"
             it[role] = AdminRole.SUPERVISOR
             it[isActive] = true
