@@ -26,6 +26,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.example.project.SmartCardManager
 import org.example.project.screen.FloatingBubbles
+import org.example.project.network.GameApiClient
+import org.example.project.model.GameDto
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import org.jetbrains.skia.Image as SkiaImage
 
 // ✅ HÀM FORMAT SỐ TIỀN
 fun formatMoney(amount: Int): String {
@@ -38,7 +44,8 @@ data class GameTicket(
     val emoji: String,
     val price: Int,  // Đơn vị:  nghìn đồng
     val gradientColors: List<Color>,
-    var quantity: Int = 0
+    var quantity: Int = 0,
+    val image: ImageBitmap? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,20 +59,8 @@ fun UserBuyTicketsScreen(
     var status by remember { mutableStateOf("") }
     var showConfirmDialog by remember { mutableStateOf(false) }
 
-    var cart by remember {
-        mutableStateOf(
-            listOf(
-                GameTicket(1001, "Tàu Lượn", "🎢", 1, listOf(Color(0xFFFF6B6B), Color(0xFFFF8E8E))),
-                GameTicket(1002, "Đu Quay", "🎡", 5, listOf(Color(0xFF4ECDC4), Color(0xFF6EE5DB))),
-                GameTicket(1003, "Nhà Phao", "🏰", 8, listOf(Color(0xFFFFBE0B), Color(0xFFFFD60A))),
-                GameTicket(1004, "Tàu Cướp Biển", "🏴‍☠️", 12, listOf(Color(0xFF8B5CF6), Color(0xFFA78BFA))),
-                GameTicket(1005, "Bể Bơi", "🏊", 6, listOf(Color(0xFF3B82F6), Color(0xFF60A5FA))),
-                GameTicket(1006, "Con Lắc 360°", "🎪", 15, listOf(Color(0xFFEC4899), Color(0xFFF472B6))),
-                GameTicket(1007, "Nhà Ma", "👻", 9, listOf(Color(0xFF6366F1), Color(0xFF818CF8))),
-                GameTicket(1008, "Đua Xe", "🏎️", 11, listOf(Color(0xFFEF4444), Color(0xFFF87171)))
-            )
-        )
-    }
+    var cart by remember { mutableStateOf<List<GameTicket>>(emptyList()) }
+    val gameApiClient = remember { GameApiClient() }
 
     val scope = rememberCoroutineScope()
 
@@ -76,8 +71,73 @@ fun UserBuyTicketsScreen(
         }
     }
 
+    fun pickEmoji(name: String): String {
+        val lower = name.lowercase()
+        return when {
+            listOf("tàu", "roller", "coaster").any { lower.contains(it) } -> "🎢"
+            listOf("đu quay", "wheel", "ferris").any { lower.contains(it) } -> "🎡"
+            listOf("đua", "race", "xe").any { lower.contains(it) } -> "🏎️"
+            listOf("nhảy", "jump", "vr").any { lower.contains(it) } -> "🕶️"
+            listOf("bóng", "basket", "rổ").any { lower.contains(it) } -> "🏀"
+            listOf("cá", "fishing").any { lower.contains(it) } -> "🎣"
+            listOf("ma", "ghost").any { lower.contains(it) } -> "👻"
+            else -> "🎮"
+        }
+    }
+
+    fun gradientFor(code: Int): List<Color> {
+        return when (code % 6) {
+            0 -> listOf(Color(0xFFFF6B6B), Color(0xFFFF8E8E))
+            1 -> listOf(Color(0xFF4ECDC4), Color(0xFF6EE5DB))
+            2 -> listOf(Color(0xFFFFBE0B), Color(0xFFFFD60A))
+            3 -> listOf(Color(0xFF8B5CF6), Color(0xFFA78BFA))
+            4 -> listOf(Color(0xFF3B82F6), Color(0xFF60A5FA))
+            else -> listOf(Color(0xFFEC4899), Color(0xFFF472B6))
+        }
+    }
+
+    fun parsePriceThousands(ticketPrice: String): Int {
+        // Expect like "12.00" -> 12 (thousand VND units used by UI)
+        return ticketPrice.substringBefore('.')
+            .toIntOrNull()
+            ?: ticketPrice.toDoubleOrNull()?.toInt()
+            ?: 0
+    }
+
+    fun loadGames() {
+        scope.launch {
+            isLoading = true
+            status = ""
+            val result = gameApiClient.getAllGames()
+            result.onSuccess { list ->
+                val tickets = list.filter { it.isActive }.map { dto ->
+                    val bytes = gameApiClient.decodeImage(dto.gameImage)
+                    val imgBitmap = bytes?.let {
+                        try { SkiaImage.makeFromEncoded(it).toComposeImageBitmap() } catch (_: Exception) { null }
+                    }
+                    GameTicket(
+                        gameCode = dto.gameCode,
+                        name = dto.gameName,
+                        emoji = pickEmoji(dto.gameName),
+                        price = parsePriceThousands(dto.ticketPrice),
+                        gradientColors = gradientFor(dto.gameCode),
+                        quantity = 0,
+                        image = imgBitmap
+                    )
+                }
+                cart = tickets
+                status = if (tickets.isEmpty()) "📭 Không có trò chơi hoạt động" else "✅ Đã tải ${tickets.size} trò chơi từ server"
+            }.onFailure { e ->
+                status = "❌ Lỗi tải game: ${e.message}"
+                cart = emptyList()
+            }
+            isLoading = false
+        }
+    }
+
     LaunchedEffect(Unit) {
         loadBalance()
+        loadGames()
     }
 
     val totalTickets = cart.sumOf { it.quantity }
@@ -613,7 +673,15 @@ private fun GameTicketCard(
                             .shadow(4.dp, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = game.emoji, fontSize = 36.sp)
+                        if (game.image != null) {
+                            Image(
+                                bitmap = game.image,
+                                contentDescription = "Game image",
+                                modifier = Modifier.size(56.dp).clip(CircleShape)
+                            )
+                        } else {
+                            Text(text = game.emoji, fontSize = 36.sp)
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(16.dp))

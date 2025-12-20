@@ -26,6 +26,10 @@ kotlin {
             implementation(libs.androidx.lifecycle. runtimeCompose)
             implementation(compose.materialIconsExtended)
             implementation(compose.material3AdaptiveNavigationSuite)
+            // HTTP + JSON
+            implementation("com.squareup.okhttp3:okhttp:4.12.0")
+            implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
+            implementation("org.jetbrains.kotlin:kotlin-reflect:${libs.versions.kotlin.get()}")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

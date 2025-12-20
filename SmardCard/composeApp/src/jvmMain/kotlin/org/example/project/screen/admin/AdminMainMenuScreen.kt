@@ -59,13 +59,20 @@ fun AdminMainMenuScreen(
                 gradientColors = listOf(Color(0xFFBA68C8), Color(0xFFCE93D8)),
                 onClick = onNavigateGameManagement
             ),
-            AdminMenuOption(
-                title = "Cài đặt",
-                emoji = "⚙️",
-                description = "Cấu hình hệ thống",
-                gradientColors = listOf(Color(0xFF90A4AE), Color(0xFFB0BEC5)),
-                onClick = onNavigateSettings
-            )
+//            AdminMenuOption(
+//                title = "RSA Authentication",
+//                emoji = "🔐",
+//                description = "Xác thực bằng RSA",
+//                gradientColors = listOf(Color(0xFFEF5350), Color(0xFFE57373)),
+//                onClick = onNavigateRSAAuth
+//            ),
+//            AdminMenuOption(
+//                title = "Cài đặt",
+//                emoji = "⚙️",
+//                description = "Cấu hình hệ thống",
+//                gradientColors = listOf(Color(0xFF90A4AE), Color(0xFFB0BEC5)),
+//                onClick = onNavigateSettings
+//            )
         )
     }
 

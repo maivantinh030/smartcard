@@ -107,6 +107,7 @@ public class GameManager {
         short index = findGameIndex(gameCode);
         if (index == -1) {
             buf[0] = 0;
+            apdu.setOutgoing();
             apdu.setOutgoingLength((short)1);
             apdu.sendBytesLong(buf, (short)0, (short)1);
         } else {
@@ -115,6 +116,7 @@ public class GameManager {
             buf[1] = gameList[offset];
             buf[2] = gameList[(short)(offset + 1)];
             buf[3] = gameList[(short)(offset + 2)];
+            apdu.setOutgoing();
             apdu.setOutgoingLength((short)4);
             apdu.sendBytesLong(buf, (short)0, (short)4);
         }

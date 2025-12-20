@@ -16,6 +16,7 @@ enum class UserScreen {
     PIN_ENTRY,
     MAIN,
     VIEW_INFO,
+    UPDATE_INFO,
     BUY_TICKETS,  // ✅ ĐỔI TÊN
     GAMES,
     CHANGE_PIN
@@ -30,7 +31,8 @@ fun UserApp() {
         UserScreen.CONNECT -> {
             ConnectScreen(
                 onCardConnected = { currentScreen = UserScreen.PIN_ENTRY },
-                smartCardManager = smartCardManager
+                smartCardManager = smartCardManager,
+                requireRSAAuth = true
             )
         }
 
@@ -45,6 +47,7 @@ fun UserApp() {
             UserMainMenuScreen(
                 smartCardManager = smartCardManager,
                 onNavigateViewInfo = { currentScreen = UserScreen.VIEW_INFO },
+                onNavigateUpdateInfo = { currentScreen = UserScreen.UPDATE_INFO },
                 onNavigateBuyTickets = { currentScreen = UserScreen.BUY_TICKETS }, // ✅ ĐỔI TÊN
                 onNavigateGames = { currentScreen = UserScreen.GAMES },
                 onNavigateChangePin = { currentScreen = UserScreen. CHANGE_PIN },
@@ -59,6 +62,13 @@ fun UserApp() {
             UserViewInfoScreen(
                 smartCardManager = smartCardManager,
                 onBack = { currentScreen = UserScreen. MAIN }
+            )
+        }
+
+        UserScreen.UPDATE_INFO -> {
+            UserUpdateInfoScreen(
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = UserScreen.MAIN }
             )
         }
 

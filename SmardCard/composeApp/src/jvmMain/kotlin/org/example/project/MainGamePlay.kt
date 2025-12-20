@@ -20,8 +20,10 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.example.project.model.GameDto
 import org.example.project.screen.ConnectScreen
 import org.example.project.screen.FloatingBubbles
+import org.example.project.screen.GameSelectionScreen
 
 // ===== HELPER FUNCTIONS =====
 
@@ -70,6 +72,7 @@ private fun getGameColors(gameCode: Int): List<Color> {
 // ===== ENUMS =====
 
 private enum class GamePlayAppScreen {
+    SELECTION,
     CONNECT,
     PLAYING
 }
@@ -77,28 +80,47 @@ private enum class GamePlayAppScreen {
 // ===== MAIN APP =====
 
 @Composable
-private fun GamePlayApp(gameCode: Int) {
-    var currentScreen by remember { mutableStateOf(GamePlayAppScreen. CONNECT) }
+private fun GamePlayApp(initialGame: GameDto?) {
+    var currentScreen by remember { mutableStateOf(
+        if (initialGame != null) GamePlayAppScreen.CONNECT else GamePlayAppScreen.SELECTION
+    ) }
+    var selectedGame by remember { mutableStateOf(initialGame) }
     val smartCardManager = remember { SmartCardManager() }
 
     when (currentScreen) {
+        GamePlayAppScreen.SELECTION -> {
+            GameSelectionScreen(
+                onGameSelected = { game ->
+                    selectedGame = game
+                    currentScreen = GamePlayAppScreen.CONNECT
+                },
+                onBack = {
+                    // Return to main menu - user needs to handle this at higher level
+                }
+            )
+        }
+
         GamePlayAppScreen.CONNECT -> {
             ConnectScreen(
                 onCardConnected = {
-                    currentScreen = GamePlayAppScreen. PLAYING
+                    currentScreen = GamePlayAppScreen.PLAYING
                 },
-                smartCardManager = smartCardManager
+                smartCardManager = smartCardManager,
+                requireRSAAuth = false
             )
         }
 
         GamePlayAppScreen.PLAYING -> {
-            GamePlayScreen(
-                smartCardManager = smartCardManager,
-                gameCode = gameCode,
-                onComplete = {
-                    currentScreen = GamePlayAppScreen.CONNECT
-                }
-            )
+            if (selectedGame != null) {
+                GamePlayScreen(
+                    smartCardManager = smartCardManager,
+                    game = selectedGame!!,
+                    onComplete = {
+                        currentScreen = GamePlayAppScreen.SELECTION
+                        selectedGame = null
+                    }
+                )
+            }
         }
     }
 }
@@ -108,7 +130,7 @@ private fun GamePlayApp(gameCode: Int) {
 @Composable
 private fun GamePlayScreen(
     smartCardManager: SmartCardManager,
-    gameCode: Int,
+    game: GameDto,
     onComplete: () -> Unit
 ) {
     var customerName by remember { mutableStateOf("") }
@@ -126,25 +148,19 @@ private fun GamePlayScreen(
             try {
                 println("═══════════════════════════════════")
                 println("🎮 QUÉT THẺ VÀO CHƠI")
-                println("Game: ${getGameName(gameCode)}")
-                println("Code: $gameCode")
+                println("Game: ${game.gameName}")
+                println("Code: ${game.gameCode}")
                 println("───────────────────────────────────")
 
-                // Đọc thông tin khách
-                val info = smartCardManager.readCustomerInfo()
-                customerName = info["name"] ?: "Khách hàng"
-                println("Khách:  $customerName")
-
-                delay(500)
-
-                // Đọc danh sách game
+                // Tìm game cụ thể trên thẻ
                 statusMessage = "⏳ Đang kiểm tra lượt chơi..."
-                val games = smartCardManager.readGames()
-                val targetGame = games.find { it. gameCode == gameCode }
+                println("🔍 Tìm game code: ${game.gameCode}")
+                val targetGame = smartCardManager.findGame(game.gameCode)
+                println("📊 Kết quả: ${if (targetGame != null) "Tìm thấy - ${targetGame.tickets} lượt" else "Không tìm thấy"}")
 
                 if (targetGame == null || targetGame.tickets <= 0) {
                     println("❌ Không có lượt chơi")
-                    statusMessage = "❌ KHÔNG CÓ LƯỢT!\n\nKhách chưa mua lượt ${getGameName(gameCode)}"
+                    statusMessage = "❌ KHÔNG CÓ LƯỢT!\n\nKhách chưa mua lượt ${game.gameName}"
                     delay(3000)
                     smartCardManager.disconnect()
                     println("═══════════════════════════════════")
@@ -158,7 +174,9 @@ private fun GamePlayScreen(
 
                 // Trừ lượt
                 statusMessage = "⏳ Đang trừ lượt..."
-                val success = smartCardManager.decreaseGameTickets(gameCode, 1)
+                println("➖ Gửi lệnh DECREASE_GAME_TICKETS: gameCode=${game.gameCode}, tickets=1")
+                val success = smartCardManager.decreaseGameTickets(game.gameCode, 1)
+                println("📤 Đã gửi INS 0x12 - Kết quả: ${if (success) "SUCCESS" else "FAILED"}")
 
                 if (success) {
                     println("✅ Trừ lượt thành công!")
@@ -226,7 +244,7 @@ private fun GamePlayScreen(
                         .fillMaxWidth()
                         .background(
                             brush = Brush.linearGradient(
-                                colors = getGameColors(gameCode)
+                                colors = getGameColors(game.gameCode)
                             )
                         )
                         .padding(40.dp)
@@ -239,12 +257,12 @@ private fun GamePlayScreen(
                             modifier = Modifier
                                 .size(120.dp)
                                 .clip(CircleShape)
-                                .background(Color.White. copy(alpha = 0.3f))
+                                .background(Color.White.copy(alpha = 0.3f))
                                 .shadow(8.dp, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = getGameEmoji(gameCode),
+                                text = getGameEmoji(game.gameCode),
                                 fontSize = 64.sp
                             )
                         }
@@ -252,22 +270,22 @@ private fun GamePlayScreen(
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
-                            text = getGameName(gameCode),
+                            text = game.gameName,
                             fontSize = 36.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White
                         )
 
-                        Spacer(modifier = Modifier. height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         Card(
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = Color. White.copy(alpha = 0.3f)
+                                containerColor = Color.White.copy(alpha = 0.3f)
                             )
                         ) {
                             Text(
-                                text = "Game #$gameCode",
+                                text = "Game #${game.gameCode}",
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
@@ -350,12 +368,10 @@ private fun GamePlayScreen(
 // ===== MAIN ENTRY POINT =====
 
 fun main() = application {
-    val gameCode = 1002  // ✅ TRUYỀN ID GAME Ở ĐÂY
-
     Window(
-        onCloseRequest = :: exitApplication,
-        title = "🎮 Game Play - ${getGameName(gameCode)}"
+        onCloseRequest = ::exitApplication,
+        title = "🎮 SmartCard Park - GAMEPLAY"
     ) {
-        GamePlayApp(gameCode = gameCode)
+        GamePlayApp(initialGame = null)  // ✅ Bắt đầu từ màn hình chọn game từ server
     }
 }

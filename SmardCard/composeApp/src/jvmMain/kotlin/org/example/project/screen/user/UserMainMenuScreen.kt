@@ -23,6 +23,7 @@ import org.example.project.screen.FloatingBubbles
 fun UserMainMenuScreen(
     smartCardManager: SmartCardManager,
     onNavigateViewInfo: () -> Unit,
+    onNavigateUpdateInfo: () -> Unit,
     onNavigateBuyTickets: () -> Unit,
     onNavigateGames: () -> Unit,
     onNavigateChangePin: () -> Unit,
@@ -36,6 +37,13 @@ fun UserMainMenuScreen(
                 description = "Xem thông tin cá nhân & ảnh",
                 gradientColors = listOf(Color(0xFF64B5F6), Color(0xFF90CAF9)),
                 onClick = onNavigateViewInfo
+            ),
+            UserMenuOption(
+                title = "Cập nhật thông tin",
+                emoji = "✏️",
+                description = "Chỉnh sửa thông tin cá nhân",
+                gradientColors = listOf(Color(0xFF4FC3F7), Color(0xFF81D4FA)),
+                onClick = onNavigateUpdateInfo
             ),
             UserMenuOption(
                 title = "Mua vé game",  // ✅ ĐỔI TÊN

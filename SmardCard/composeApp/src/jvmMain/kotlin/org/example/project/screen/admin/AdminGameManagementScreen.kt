@@ -1,5 +1,6 @@
 package org.example.project.screen.admin
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,10 +19,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.example.project.SmartCardManager
 import org.example.project.screen.FloatingBubbles
-import org.example.project.GameEntry
+import org.example.project.network.GameApiClient
+import org.example.project.auth.TokenStore
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import org.jetbrains.skia.Image
+import java.awt.FileDialog
+import java.awt.Frame
+import java.io.ByteArrayOutputStream
+import java.io.File
+import javax.imageio.ImageIO
+
+// UI model with optional image
+data class GameUi(
+    val gameCode: Int,
+    val gameName: String,
+    val gameDescription: String?,
+    val ticketPrice: String,
+    val isActive: Boolean,
+    val image: ImageBitmap? = null,
+    val imageData: ByteArray? = null
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,24 +52,51 @@ fun AdminGameManagementScreen(
     smartCardManager: SmartCardManager,
     onBack: () -> Unit
 ) {
-    var games by remember { mutableStateOf<List<GameEntry>>(emptyList()) }
+    var games by remember { mutableStateOf<List<GameUi>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
+    val gameApiClient = remember { GameApiClient() }
 
     fun loadGames() {
         scope.launch {
             isLoading = true
             try {
-                games = smartCardManager.readGames()
-                status = if (games.isEmpty())
-                    "📭 Chưa có game nào"
-                else
-                    "✅ Đã tải ${games.size} game"
+                val result = withContext(Dispatchers.IO) {
+                    gameApiClient.getAllGames()
+                }
+                result.onSuccess { gameList ->
+                    games = gameList.map { dto ->
+                        val imageBytes = gameApiClient.decodeImage(dto.gameImage)
+                        val imageBitmap = imageBytes?.let {
+                            try {
+                                Image.makeFromEncoded(it).toComposeImageBitmap()
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                        GameUi(
+                            gameCode = dto.gameCode,
+                            gameName = dto.gameName,
+                            gameDescription = dto.gameDescription,
+                            ticketPrice = dto.ticketPrice,
+                            isActive = dto.isActive,
+                            image = imageBitmap,
+                            imageData = imageBytes
+                        )
+                    }
+                    status = if (games.isEmpty())
+                        "📭 Chưa có game nào trên server"
+                    else
+                        "✅ Đã tải ${games.size} game từ server"
+                }.onFailure { e ->
+                    status = "❌ Lỗi: ${e.message}"
+                    games = emptyList()
+                }
             } catch (e: Exception) {
-                status = "❌ Lỗi:  ${e.message}"
+                status = "❌ Lỗi: ${e.message}"
                 games = emptyList()
             }
             isLoading = false
@@ -210,23 +260,19 @@ fun AdminGameManagementScreen(
                     items(games) { game ->
                         AdminGameCard(
                             game = game,
-                            onAddTickets = { addAmount ->
+                            gameApiClient = gameApiClient,
+                            onDeleteGame = {
                                 scope.launch {
                                     try {
-                                        smartCardManager.addOrIncreaseTickets(game.gameCode, addAmount)
-                                        status = "✅ Đã thêm $addAmount vé cho game ${game.gameCode}"
-                                        loadGames()
-                                    } catch (e: Exception) {
-                                        status = "❌ Lỗi: ${e.message}"
-                                    }
-                                }
-                            },
-                            onRemoveGame = {
-                                scope.launch {
-                                    try {
-                                        smartCardManager.removeGame(game.gameCode)
-                                        status = "✅ Đã xóa game ${game.gameCode}"
-                                        loadGames()
+                                        val result = withContext(Dispatchers.IO) {
+                                            gameApiClient.deleteGame(game.gameCode)
+                                        }
+                                        result.onSuccess {
+                                            status = "✅ Đã xóa game ${game.gameName}"
+                                            loadGames()
+                                        }.onFailure { e ->
+                                            status = "❌ Lỗi: ${e.message}"
+                                        }
                                     } catch (e: Exception) {
                                         status = "❌ Lỗi: ${e.message}"
                                     }
@@ -243,13 +289,19 @@ fun AdminGameManagementScreen(
     if (showAddDialog) {
         AddGameDialog(
             onDismiss = { showAddDialog = false },
-            onConfirm = { gameCode, tickets ->
+            onConfirm = { gameName, gameDescription, ticketPrice, imageData, imageBitmap ->
                 scope.launch {
                     try {
-                        smartCardManager.addOrIncreaseTickets(gameCode, tickets)
-                        status = "✅ Đã thêm game $gameCode với $tickets vé"
-                        loadGames()
-                        showAddDialog = false
+                        val result = withContext(Dispatchers.IO) {
+                            gameApiClient.addGame(gameName, gameDescription, ticketPrice, imageData)
+                        }
+                        result.onSuccess { gameCode ->
+                            status = "✅ Đã thêm game '$gameName' với mã $gameCode"
+                            showAddDialog = false
+                            loadGames()
+                        }.onFailure { e ->
+                            status = "❌ Lỗi: ${e.message}"
+                        }
                     } catch (e: Exception) {
                         status = "❌ Lỗi: ${e.message}"
                     }
@@ -261,11 +313,10 @@ fun AdminGameManagementScreen(
 
 @Composable
 fun AdminGameCard(
-    game: GameEntry,
-    onAddTickets:  (Int) -> Unit,
-    onRemoveGame: () -> Unit
+    game: GameUi,
+    gameApiClient: GameApiClient,
+    onDeleteGame: () -> Unit
 ) {
-    var showAddTicketsDialog by remember { mutableStateOf(false) }
     var showRemoveDialog by remember { mutableStateOf(false) }
 
     Card(
@@ -285,7 +336,7 @@ fun AdminGameCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(60.dp)
+                        .size(64.dp)
                         .clip(CircleShape)
                         .background(
                             brush = Brush.radialGradient(
@@ -297,24 +348,49 @@ fun AdminGameCard(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("🎯", fontSize = 28.sp)
+                    if (game.image != null) {
+                        Image(
+                            bitmap = game.image,
+                            contentDescription = "Game image",
+                            modifier = Modifier.size(64.dp).clip(CircleShape)
+                        )
+                    } else {
+                        Text("🎯", fontSize = 28.sp)
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(16.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Game #${game.gameCode}",
+                        text = game.gameName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333)
                     )
                     Spacer(modifier = Modifier. height(4.dp))
-                    Text(
-                        text = "Số vé: ${game.tickets}",
-                        fontSize = 14.sp,
-                        color = Color(0xFF666666)
-                    )
+                    if (!game.gameDescription.isNullOrEmpty()) {
+                        Text(
+                            text = game.gameDescription,
+                            fontSize = 12.sp,
+                            color = Color(0xFF888888)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "💰 ${game.ticketPrice} VNĐ/vé",
+                            fontSize = 14.sp,
+                            color = Color(0xFF4CAF50),
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = if (game.isActive) "✅ Hoạt động" else "❌ Tắt",
+                            fontSize = 12.sp,
+                            color = if (game.isActive) Color(0xFF4CAF50) else Color(0xFFE53935)
+                        )
+                    }
                 }
             }
 
@@ -322,22 +398,10 @@ fun AdminGameCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement. spacedBy(8.dp)
+                horizontalArrangement = Arrangement.End
             ) {
-                Button(
-                    onClick = { showAddTicketsDialog = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("➕ Thêm vé", fontSize = 12.sp)
-                }
-
                 OutlinedButton(
                     onClick = { showRemoveDialog = true },
-                    modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = Color(0xFFE53935)
@@ -349,28 +413,16 @@ fun AdminGameCard(
         }
     }
 
-    // Add Tickets Dialog
-    if (showAddTicketsDialog) {
-        AddTicketsDialog(
-            gameCode = game.gameCode,
-            onDismiss = { showAddTicketsDialog = false },
-            onConfirm = { amount ->
-                onAddTickets(amount)
-                showAddTicketsDialog = false
-            }
-        )
-    }
-
     // Remove Confirmation Dialog
     if (showRemoveDialog) {
         AlertDialog(
             onDismissRequest = { showRemoveDialog = false },
             title = { Text("Xác nhận xóa") },
-            text = { Text("Bạn có chắc muốn xóa game #${game.gameCode}? ") },
+            text = { Text("Bạn có chắc muốn xóa game \"${game.gameName}\"?") },
             confirmButton = {
                 Button(
                     onClick = {
-                        onRemoveGame()
+                        onDeleteGame()
                         showRemoveDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -392,10 +444,13 @@ fun AdminGameCard(
 @Composable
 fun AddGameDialog(
     onDismiss: () -> Unit,
-    onConfirm: (Int, Int) -> Unit
+    onConfirm: (String, String, String, ByteArray?, ImageBitmap?) -> Unit
 ) {
-    var gameCode by remember { mutableStateOf("") }
-    var tickets by remember { mutableStateOf("") }
+    var gameName by remember { mutableStateOf("") }
+    var gameDescription by remember { mutableStateOf("") }
+    var ticketPrice by remember { mutableStateOf("") }
+    var imageData by remember { mutableStateOf<ByteArray?>(null) }
+    var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -403,73 +458,79 @@ fun AddGameDialog(
         text = {
             Column {
                 OutlinedTextField(
-                    value = gameCode,
-                    onValueChange = { gameCode = it },
-                    label = { Text("Mã game") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true
+                    value = gameName,
+                    onValueChange = { gameName = it },
+                    label = { Text("Tên game") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier. height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
-                    value = tickets,
-                    onValueChange = { tickets = it },
-                    label = { Text("Số vé") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true
+                    value = gameDescription,
+                    onValueChange = { gameDescription = it },
+                    label = { Text("Mô tả") },
+                    minLines = 2,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = ticketPrice,
+                    onValueChange = { ticketPrice = it },
+                    label = { Text("Giá vé (VNĐ)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(
+                        onClick = {
+                            val fd = FileDialog(null as Frame?, "Chọn ảnh game", FileDialog.LOAD)
+                            fd.isVisible = true
+                            val fileName = fd.file
+                            val dir = fd.directory
+                            if (fileName != null && dir != null) {
+                                try {
+                                    val file = File(dir, fileName)
+                                    val img = ImageIO.read(file)
+                                    val baos = ByteArrayOutputStream()
+                                    ImageIO.write(img, "png", baos)
+                                    imageData = baos.toByteArray()
+                                    imageBitmap = Image.makeFromEncoded(imageData!!).toComposeImageBitmap()
+                                } catch (e: Exception) {
+                                    println("Error loading image: ${e.message}")
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("🖼️ Chọn ảnh")
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+                    if (imageBitmap != null) {
+                        Image(
+                            bitmap = imageBitmap!!,
+                            contentDescription = "Game preview",
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    } else {
+                        Text("Chưa có ảnh", color = Color.Gray, fontSize = 12.sp)
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    val code = gameCode.toIntOrNull()
-                    val amount = tickets. toIntOrNull()
-                    if (code != null && amount != null && amount > 0) {
-                        onConfirm(code, amount)
+                    if (gameName.isNotEmpty() && ticketPrice.isNotEmpty()) {
+                        onConfirm(gameName, gameDescription, ticketPrice, imageData, imageBitmap)
                     }
                 },
-                enabled = gameCode.isNotEmpty() && tickets.isNotEmpty()
-            ) {
-                Text("Thêm")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Hủy")
-            }
-        }
-    )
-}
-
-@Composable
-fun AddTicketsDialog(
-    gameCode: Int,
-    onDismiss:  () -> Unit,
-    onConfirm: (Int) -> Unit
-) {
-    var amount by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Thêm vé cho game #$gameCode") },
-        text = {
-            OutlinedTextField(
-                value = amount,
-                onValueChange = { amount = it },
-                label = { Text("Số vé thêm") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val tickets = amount.toIntOrNull()
-                    if (tickets != null && tickets > 0) {
-                        onConfirm(tickets)
-                    }
-                },
-                enabled = amount.isNotEmpty()
+                enabled = gameName.isNotEmpty() && ticketPrice.isNotEmpty()
             ) {
                 Text("Thêm")
             }
