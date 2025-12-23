@@ -1175,64 +1175,82 @@ fun UserUpdateInfoScreen(
                                                     val imageFile = File(dir, file)
                                                     val bufferedImage = ImageIO.read(imageFile)
 
-                                                    val maxWidth = 200
-                                                    val maxHeight = 200
-                                                    val scaledImage = if (bufferedImage.width > maxWidth || bufferedImage.height > maxHeight) {
-                                                        val scale = minOf(
-                                                            maxWidth.toFloat() / bufferedImage.width,
-                                                            maxHeight.toFloat() / bufferedImage.height
-                                                        )
-                                                        val newWidth = (bufferedImage.width * scale).toInt()
-                                                        val newHeight = (bufferedImage.height * scale).toInt()
+                                                    // Khởi tạo biến để lưu ảnh đang xử lý
+                                                    var workingImage = bufferedImage
 
-                                                        val scaled = BufferedImage(newWidth, newHeight, bufferedImage.type)
-                                                        val g = scaled.createGraphics()
-                                                        g. drawImage(bufferedImage, 0, 0, newWidth, newHeight, null)
-                                                        g.dispose()
-                                                        scaled
-                                                    } else {
-                                                        bufferedImage
-                                                    }
+                                                    // Danh sách các kích thước để thử (giảm dần)
+                                                    val sizeSteps = listOf(200, 150, 128, 100, 80)
+                                                    val targetSizeBytes = 8000
+                                                    var finalCompressedBytes: ByteArray? = null
+                                                    var finalScaledImage: BufferedImage? = null
 
-                                                    val outputStream = ByteArrayOutputStream()
-                                                    ImageIO.write(scaledImage, "jpg", outputStream)
-                                                    val bytes = outputStream.toByteArray()
+                                                    // Thử từng kích thước
+                                                    for (targetSizePx in sizeSteps) {
+                                                        // Resize ảnh xuống kích thước target nếu cần
+                                                        val scaledImage = if (workingImage.width > targetSizePx || workingImage.height > targetSizePx) {
+                                                            val scale = minOf(
+                                                                targetSizePx.toFloat() / workingImage.width,
+                                                                targetSizePx.toFloat() / workingImage.height
+                                                            )
+                                                            val newWidth = (workingImage.width * scale).toInt()
+                                                            val newHeight = (workingImage.height * scale).toInt()
 
-                                                    if (bytes.size > 8000) {
+                                                            val scaled = BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB)
+                                                            val g = scaled.createGraphics()
+                                                            g.drawImage(workingImage, 0, 0, newWidth, newHeight, null)
+                                                            g.dispose()
+                                                            scaled
+                                                        } else {
+                                                            workingImage
+                                                        }
+
+                                                        // Thử nén với các mức quality khác nhau
                                                         var quality = 0.7f
-                                                        var compressedBytes = bytes
+                                                        var found = false
 
-                                                        while (compressedBytes.size > 8000 && quality > 0.1f) {
+                                                        while (quality >= 0.05f) {
                                                             val baos = ByteArrayOutputStream()
                                                             val writer = ImageIO.getImageWritersByFormatName("jpg").next()
                                                             val ios = ImageIO.createImageOutputStream(baos)
                                                             writer.output = ios
 
                                                             val param = writer.defaultWriteParam
-                                                            param.compressionMode = ImageWriteParam. MODE_EXPLICIT
+                                                            param.compressionMode = ImageWriteParam.MODE_EXPLICIT
                                                             param.compressionQuality = quality
 
                                                             writer.write(null, javax.imageio.IIOImage(scaledImage, null, null), param)
-                                                            writer. dispose()
+                                                            writer.dispose()
                                                             ios.close()
 
-                                                            compressedBytes = baos. toByteArray()
-                                                            quality -= 0.1f
+                                                            val testBytes = baos.toByteArray()
+
+                                                            if (testBytes.size <= targetSizeBytes) {
+                                                                finalCompressedBytes = testBytes
+                                                                finalScaledImage = scaledImage
+                                                                found = true
+                                                                break
+                                                            }
+
+                                                            quality -= 0.05f
                                                         }
 
-                                                        if (compressedBytes.size > 8000) {
-                                                            updateStatus = "❌ Ảnh quá lớn!  Vui lòng chọn ảnh khác."
-                                                            return@launch
-                                                        }
+                                                        if (found) break
 
-                                                        selectedImageBytes = compressedBytes
-                                                    } else {
-                                                        selectedImageBytes = bytes
+                                                        // Nếu chưa tìm được, cập nhật workingImage để thử kích thước nhỏ hơn
+                                                        workingImage = scaledImage
                                                     }
 
-                                                    selectedImage = scaledImage. toComposeImageBitmap()
+                                                    // Kiểm tra kết quả cuối cùng
+                                                    if (finalCompressedBytes == null || finalScaledImage == null || finalCompressedBytes.size > targetSizeBytes) {
+                                                        updateStatus = "❌ Không thể nén ảnh xuống dưới ${targetSizeBytes} bytes. Vui lòng chọn ảnh khác."
+                                                        return@launch
+                                                    }
+
+                                                    // Gán kết quả
+                                                    selectedImageBytes = finalCompressedBytes
+                                                    selectedImage = finalScaledImage.toComposeImageBitmap()
                                                     validateField("image", "", selectedImageBytes)
-                                                    updateStatus = "✅ Đã chọn ảnh thành công!"
+                                                    updateStatus = "✅ Đã chọn và nén ảnh thành công! (${finalCompressedBytes.size} bytes)"
 
                                                 } catch (e:  Exception) {
                                                     updateStatus = "❌ Lỗi đọc ảnh: ${e.message}"

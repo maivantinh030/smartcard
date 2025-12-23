@@ -1175,10 +1175,10 @@ fun AdminWriteInfoScreen(
                                                 val maxHeight = 200
                                                 val scaledImage = if (bufferedImage.width > maxWidth || bufferedImage.height > maxHeight) {
                                                     val scale = minOf(
-                                                        maxWidth. toFloat() / bufferedImage.width,
+                                                        maxWidth.toFloat() / bufferedImage.width,
                                                         maxHeight.toFloat() / bufferedImage.height
                                                     )
-                                                    val newWidth = (bufferedImage.width * scale).toInt()
+                                                    val newWidth = (bufferedImage. width * scale).toInt()
                                                     val newHeight = (bufferedImage.height * scale).toInt()
 
                                                     val scaled = java.awt.image.BufferedImage(newWidth, newHeight, bufferedImage.type)
@@ -1207,9 +1207,8 @@ fun AdminWriteInfoScreen(
                                                         val param = writer.defaultWriteParam
                                                         param.compressionMode = javax.imageio.ImageWriteParam.MODE_EXPLICIT
                                                         param.compressionQuality = quality
-
                                                         writer.write(null, javax.imageio.IIOImage(scaledImage, null, null), param)
-                                                        writer.dispose()
+                                                        writer. dispose()
                                                         ios.close()
 
                                                         compressedBytes = baos.toByteArray()
