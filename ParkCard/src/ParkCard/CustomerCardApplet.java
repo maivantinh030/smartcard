@@ -187,8 +187,14 @@ public class CustomerCardApplet extends Applet {
     }
 
     private void changePIN(APDU apdu) {
+        // Must be authenticated first
+        if (!pinMgr.isPINValidated()) {
+            ISOException.throwIt((short)0x6985);  // Conditions of use not satisfied - must verify PIN first
+        }
         pinMgr.changePIN(apdu);
-        model.setDataReady(true);
+        // Reset authentication state after PIN change
+        model.setDataReady(false);
+        cryptoMgr.clearKey();
     }
 
     private void resetWithPUK(APDU apdu) {
