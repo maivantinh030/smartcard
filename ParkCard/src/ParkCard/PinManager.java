@@ -66,79 +66,50 @@ public class PinManager {
 
     public byte getTriesRemaining() { return userPIN.getTriesRemaining(); }
 
-    /**
-     * Change PIN -> unwrap master with old PIN -> rewrap with new PIN (no bulk re-encrypt).
-     * Assumes old PIN has already been verified via verify() call.
-     */
-    public void changePIN(APDU apdu) {
-        byte[] buf = apdu.getBuffer();
-        apdu.setIncomingAndReceive();
-        byte oldLen = buf[ISO7816.OFFSET_CDATA];
-        short oldOffset = (short)(ISO7816.OFFSET_CDATA + 1);
-        byte newLen = buf[(short)(oldOffset + oldLen)];
-        short newOffset = (short)(oldOffset + oldLen + 1);
-        if (newLen < PIN_MIN_LENGTH || newLen > PIN_MAX_LENGTH) {
-            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-        }
-        if (!userPIN.check(buf, oldOffset, oldLen)) {
-			ISOException.throwIt(
-				(short)(0x63C0 | userPIN.getTriesRemaining())
-			);
+		/**
+		 * Change PIN -> unwrap master with old PIN -> rewrap with new PIN (no bulk re-encrypt).
+		 * Assumes old PIN has already been verified via verify() call.
+		 */
+		public void changePIN(APDU apdu) {
+			byte[] buf = apdu.getBuffer();
+			apdu.setIncomingAndReceive();
+			
+			byte oldLen = buf[ISO7816.OFFSET_CDATA];
+			short oldOffset = (short)(ISO7816.OFFSET_CDATA + 1);
+			byte newLen = buf[(short)(oldOffset + oldLen)];
+			short newOffset = (short)(oldOffset + oldLen + 1);
+			
+			// Validate length
+			if (newLen < PIN_MIN_LENGTH || newLen > PIN_MAX_LENGTH) {
+				ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+			}
+			
+			// Verify old PIN
+			if (!userPIN.check(buf, oldOffset, oldLen)) {
+				ISOException.throwIt((short)(0x63C0 | userPIN.getTriesRemaining()));
+			}
+			
+			// Re-wrap master key vi new PIN (nu c� crypto setup)
+			if (cardModel != null && cryptoManager != null && cryptoManager.isKeyReady()) {
+				byte[] salt = cardModel.getSalt();
+				byte[] iv = cardModel.getIV();
+				
+				// Derive new PIN key (preserve loaded master key)
+				cryptoManager.deriveKeyFromPIN(buf, newOffset, newLen, salt, (short)0, (short)16, true);
+				
+				// Re-wrap master key vi new PIN key
+				cryptoManager.wrapLoadedMasterKey(
+					cardModel.getWrappedMasterKey(), (short)0, 
+					iv, (short)0
+				);
+			}
+			
+			// Update PIN
+			userPIN.update(buf, newOffset, newLen);
+			
+			// Restore authenticated state
+			userPIN.check(buf, newOffset, newLen);
 		}
-		
-		
-		if (cardModel != null && cryptoManager != null) {
-            // CREATE BACKUP REFERENCES
-            byte[] originalWrappedKey = cardModel.getWrappedMasterKey();
-            byte[] salt = cardModel.getSalt();
-            byte[] iv = cardModel.getIV();
-            
-            // TEMPORARY STORAGE cho new wrapped key
-            byte[] newWrappedKey = JCSystem.makeTransientByteArray((short)16, JCSystem.CLEAR_ON_DESELECT);
-            byte[] backupWrappedKey = JCSystem.makeTransientByteArray((short)16, JCSystem.CLEAR_ON_DESELECT);
-            
-            try {
-                // STEP 1: Backup current wrapped key
-                Util.arrayCopyNonAtomic(originalWrappedKey, (short)0, backupWrappedKey, (short)0, (short)16);
-               
-                if (!cryptoManager.isKeyReady()) {
-                    ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-                }
-                
-                // STEP 3: Derive new PIN key nhưng PRESERVE master key đã loaded
-                cryptoManager.deriveKeyFromPIN(buf, newOffset, newLen, salt, (short)0, (short)16, true);
-                
-                // STEP 4: Wrap master key hiện tại bằng new PIN key
-                cryptoManager.wrapLoadedMasterKey(newWrappedKey, (short)0, iv, (short)0);
-                
-                // STEP 5: ATOMIC UPDATE - chỉ update khi chắc chắn thành công
-                Util.arrayCopyNonAtomic(newWrappedKey, (short)0, originalWrappedKey, (short)0, (short)16);
-                cardModel.setMasterKeyWrapped(true);
-                
-                // STEP 6: Update PIN cuối cùng
-                userPIN.update(buf, newOffset, newLen);
-               
-                
-            } catch (Exception e) {
-                // ROLLBACK nu c li
-                Util.arrayCopyNonAtomic(backupWrappedKey, (short)0, originalWrappedKey, (short)0, (short)16);
-                cryptoManager.clearKey();
-                cardModel.setDataReady(false);
-                
-                // Re-throw exception
-                if (e instanceof ISOException) {
-                    ISOException.throwIt(((ISOException)e).getReason());
-                } else {
-                    ISOException.throwIt(ISO7816.SW_UNKNOWN);
-                }
-            } finally {
-                // CLEANUP: Clear sensitive data t temporary buffers
-                Util.arrayFillNonAtomic(newWrappedKey, (short)0, (short)16, (byte)0);
-                Util.arrayFillNonAtomic(backupWrappedKey, (short)0, (short)16, (byte)0);
-            }
-        }
-		// Không cần reset PIN validation và clear key - user vẫn authenticated sau khi đổi PIN thành công
-    }
 
     public void getPinTries(APDU apdu) {
         byte[] buf = apdu.getBuffer();

@@ -1,5 +1,5 @@
 // converted by version 1.3
-// on Fri Jan 02 02:18:55 ICT 2026
+// on Fri Jan 02 11:02:16 ICT 2026
 
 .package ParkCard {
 	.aid 0x11:0x11:0x11:0x11:0x11;
@@ -426,19 +426,13 @@
 		// 163
 		virtualMethodRef 2.9.2()B;		// javacard/framework/OwnerPIN.getTriesRemaining()B
 		// 164
-		classRef 0.2;		// java/lang/Exception
-		// 165
 		virtualMethodRef CryptoManager/wrapLoadedMasterKey([BS[BS)V;
-		// 166
-		virtualMethodRef CardModel/setMasterKeyWrapped(Z)V;
-		// 167
-		classRef 2.7;		// javacard/framework/ISOException
-		// 168
-		virtualMethodRef 2.7.1()S;		// javacard/framework/ISOException.getReason()S
-		// 169
+		// 165
 		virtualMethodRef 2.9.6()V;		// javacard/framework/OwnerPIN.resetAndUnblock()V
-		// 170
+		// 166
 		virtualMethodRef CardModel/isMasterKeyWrapped()Z;
+		// 167
+		virtualMethodRef CardModel/setMasterKeyWrapped(Z)V;
 	}
 
 	.class public CardModel 0 extends 0.0 {		// extends java/lang/Object
@@ -3592,7 +3586,7 @@
 
 		.method public changePIN(Ljavacard/framework/APDU;)V 7 {
 			.stack 8;
-			.locals 12;
+			.locals 7;
 
 			.descriptor	Ljavacard/framework/APDU;	2.10;
 
@@ -3640,140 +3634,46 @@
 					sor;
 					invokestatic 142;		// javacard/framework/ISOException.throwIt(S)V
 				L10:	getfield_a_this 41;		// reference ParkCard/PinManager.cardModel
-					ifnull_w L28;
+					ifnull L16;
 				L11:	getfield_a_this 40;		// reference ParkCard/PinManager.cryptoManager
-					ifnull_w L28;
-				L12:	getfield_a_this 41;		// reference ParkCard/PinManager.cardModel
-					invokevirtual 161;		// ParkCard/CardModel.getWrappedMasterKey()[B
-					astore 7;
+					ifnull L16;
+				L12:	getfield_a_this 40;		// reference ParkCard/PinManager.cryptoManager
+					invokevirtual 114;		// ParkCard/CryptoManager.isKeyReady()Z
+					ifeq L16;
 				L13:	getfield_a_this 41;		// reference ParkCard/PinManager.cardModel
 					invokevirtual 125;		// ParkCard/CardModel.getSalt()[B
-					astore 8;
+					astore 7;
 				L14:	getfield_a_this 41;		// reference ParkCard/PinManager.cardModel
 					invokevirtual 124;		// ParkCard/CardModel.getIV()[B
-					astore 9;
-				L15:	bspush 16;
-					sconst_2;
-					invokestatic 69;		// javacard/framework/JCSystem.makeTransientByteArray(SB)[B
-					astore 10;
-				L16:	bspush 16;
-					sconst_2;
-					invokestatic 69;		// javacard/framework/JCSystem.makeTransientByteArray(SB)[B
-					astore 11;
-				L17:	aload 7;
-					sconst_0;
-					aload 11;
-					sconst_0;
-					bspush 16;
-					invokestatic 143;		// javacard/framework/Util.arrayCopyNonAtomic([BS[BSS)S
-					pop;
-					getfield_a_this 40;		// reference ParkCard/PinManager.cryptoManager
-					invokevirtual 114;		// ParkCard/CryptoManager.isKeyReady()Z
-					ifne L19;
-				L18:	sspush 27013;
-					invokestatic 142;		// javacard/framework/ISOException.throwIt(S)V
-				L19:	getfield_a_this 40;		// reference ParkCard/PinManager.cryptoManager
+					astore 8;
+				L15:	getfield_a_this 40;		// reference ParkCard/PinManager.cryptoManager
 					aload_2;
 					sload 6;
 					sload 5;
-					aload 8;
+					aload 7;
 					sconst_0;
 					bspush 16;
 					sconst_1;
 					invokevirtual 58;		// ParkCard/CryptoManager.deriveKeyFromPIN([BSB[BSSZ)V
 					getfield_a_this 40;		// reference ParkCard/PinManager.cryptoManager
-					aload 10;
-					sconst_0;
-					aload 9;
-					sconst_0;
-					invokevirtual 165;		// ParkCard/CryptoManager.wrapLoadedMasterKey([BS[BS)V
-					aload 10;
-					sconst_0;
-					aload 7;
-					sconst_0;
-					bspush 16;
-					invokestatic 143;		// javacard/framework/Util.arrayCopyNonAtomic([BS[BSS)S
-					pop;
 					getfield_a_this 41;		// reference ParkCard/PinManager.cardModel
-					sconst_1;
-					invokevirtual 166;		// ParkCard/CardModel.setMasterKeyWrapped(Z)V
-					getfield_a_this 37;		// reference ParkCard/PinManager.userPIN
+					invokevirtual 161;		// ParkCard/CardModel.getWrappedMasterKey()[B
+					sconst_0;
+					aload 8;
+					sconst_0;
+					invokevirtual 164;		// ParkCard/CryptoManager.wrapLoadedMasterKey([BS[BS)V
+				L16:	getfield_a_this 37;		// reference ParkCard/PinManager.userPIN
 					aload_2;
 					sload 6;
 					sload 5;
 					invokevirtual 154;		// javacard/framework/OwnerPIN.update([BSB)V
-				L20:	aload 10;
-					sconst_0;
-					bspush 16;
-					sconst_0;
-					invokestatic 141;		// javacard/framework/Util.arrayFillNonAtomic([BSSB)S
+					getfield_a_this 37;		// reference ParkCard/PinManager.userPIN
+					aload_2;
+					sload 6;
+					sload 5;
+					invokevirtual 158;		// javacard/framework/OwnerPIN.check([BSB)Z
 					pop;
-					aload 11;
-					sconst_0;
-					bspush 16;
-					sconst_0;
-					invokestatic 141;		// javacard/framework/Util.arrayFillNonAtomic([BSSB)S
-					pop;
-					goto L28;
-				L21:	astore 12;
-				L22:	aload 11;
-					sconst_0;
-					aload 7;
-					sconst_0;
-					bspush 16;
-					invokestatic 143;		// javacard/framework/Util.arrayCopyNonAtomic([BS[BSS)S
-					pop;
-					getfield_a_this 40;		// reference ParkCard/PinManager.cryptoManager
-					invokevirtual 119;		// ParkCard/CryptoManager.clearKey()V
-					getfield_a_this 41;		// reference ParkCard/PinManager.cardModel
-					sconst_0;
-					invokevirtual 116;		// ParkCard/CardModel.setDataReady(Z)V
-					aload 12;
-					instanceof 0 167;		// T_CLASSORINTERFACE javacard/framework/ISOException
-					ifeq L24;
-				L23:	aload 12;
-					checkcast 0 167;		// T_CLASSORINTERFACE javacard/framework/ISOException
-					invokevirtual 168;		// javacard/framework/ISOException.getReason()S
-					invokestatic 142;		// javacard/framework/ISOException.throwIt(S)V
-					goto L25;
-				L24:	sspush 28416;
-					invokestatic 142;		// javacard/framework/ISOException.throwIt(S)V
-				L25:	aload 10;
-					sconst_0;
-					bspush 16;
-					sconst_0;
-					invokestatic 141;		// javacard/framework/Util.arrayFillNonAtomic([BSSB)S
-					pop;
-					aload 11;
-					sconst_0;
-					bspush 16;
-					sconst_0;
-					invokestatic 141;		// javacard/framework/Util.arrayFillNonAtomic([BSSB)S
-					pop;
-					goto L28;
-				L26:	astore 13;
-				L27:	aload 10;
-					sconst_0;
-					bspush 16;
-					sconst_0;
-					invokestatic 141;		// javacard/framework/Util.arrayFillNonAtomic([BSSB)S
-					pop;
-					aload 11;
-					sconst_0;
-					bspush 16;
-					sconst_0;
-					invokestatic 141;		// javacard/framework/Util.arrayFillNonAtomic([BSSB)S
-					pop;
-					aload 13;
-					athrow;
-				L28:	return;
-			.exceptionTable {
-				// start_block end_block handler_block catch_type_index
-				L17 L20 L21 164;
-				L17 L20 L26 0;
-				L21 L25 L26 0;
-				L26 L27 L26 0;
-			}
+					return;
 		}
 
 		.method public getPinTries(Ljavacard/framework/APDU;)V 8 {
@@ -3828,7 +3728,7 @@
 			.descriptor	Ljavacard/framework/APDU;	2.10;
 
 				L0:	getfield_a_this 37;		// reference ParkCard/PinManager.userPIN
-					invokevirtual 169;		// javacard/framework/OwnerPIN.resetAndUnblock()V
+					invokevirtual 165;		// javacard/framework/OwnerPIN.resetAndUnblock()V
 					return;
 		}
 
@@ -3882,14 +3782,14 @@
 					bspush 16;
 					invokevirtual 159;		// ParkCard/CryptoManager.deriveKeyFromPIN([BSB[BSS)V
 					getfield_a_this 41;		// reference ParkCard/PinManager.cardModel
-					invokevirtual 170;		// ParkCard/CardModel.isMasterKeyWrapped()Z
+					invokevirtual 166;		// ParkCard/CardModel.isMasterKeyWrapped()Z
 					ifne L13;
 				L12:	getfield_a_this 41;		// reference ParkCard/PinManager.cardModel
 					getfield_a_this 40;		// reference ParkCard/PinManager.cryptoManager
 					invokevirtual 160;		// ParkCard/CardModel.ensureMasterKey(LParkCard/CryptoManager;)V
 				L13:	getfield_a_this 41;		// reference ParkCard/PinManager.cardModel
 					sconst_1;
-					invokevirtual 166;		// ParkCard/CardModel.setMasterKeyWrapped(Z)V
+					invokevirtual 167;		// ParkCard/CardModel.setMasterKeyWrapped(Z)V
 					getfield_a_this 40;		// reference ParkCard/PinManager.cryptoManager
 					invokevirtual 119;		// ParkCard/CryptoManager.clearKey()V
 				L14:	getfield_a_this 37;		// reference ParkCard/PinManager.userPIN
@@ -3901,7 +3801,7 @@
 					sconst_1;
 					putfield_b 39;		// boolean ParkCard/PinManager.pinCreated
 					getfield_a_this 37;		// reference ParkCard/PinManager.userPIN
-					invokevirtual 169;		// javacard/framework/OwnerPIN.resetAndUnblock()V
+					invokevirtual 165;		// javacard/framework/OwnerPIN.resetAndUnblock()V
 					return;
 		}
 
