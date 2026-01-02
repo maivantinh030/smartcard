@@ -7,7 +7,8 @@ import javacardx.crypto.*;
 public class CryptoManager {
     private static final short AES_KEY_SIZE = 16;
 
-    private final Cipher aesCipher;
+    private final Cipher cbcCipher;  // CBC mode for PIN wrap/unwrap and fields
+    private final Cipher ecbCipher;  // ECB mode for photo encryption
     private final byte[] aesKey;   // master key plaintext (transient)
     private final byte[] pinKey;   // PIN-derived key (transient)
     private final byte[] derivedBuf; // reuse PBKDF2 output buffer to avoid reallocation
@@ -15,7 +16,8 @@ public class CryptoManager {
     private final PBKDF2 pbkdf2;
 
     public CryptoManager() {
-        aesCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
+        cbcCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
+        ecbCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_ECB_NOPAD, false);
         aesKey = JCSystem.makeTransientByteArray(AES_KEY_SIZE, JCSystem.CLEAR_ON_DESELECT);
         pinKey = JCSystem.makeTransientByteArray(AES_KEY_SIZE, JCSystem.CLEAR_ON_DESELECT);
         derivedBuf = JCSystem.makeTransientByteArray((short)20, JCSystem.CLEAR_ON_DESELECT);
@@ -48,23 +50,23 @@ public class CryptoManager {
         deriveKeyFromPIN(pin, pinOff, pinLen, salt, saltOff, saltLen, false);
     }
 
-    /** Wrap plaintext master key (16B) using current PIN key. */
+    /** Wrap plaintext master key (16B) using current PIN key (CBC mode). */
     public void wrapMasterKey(byte[] masterPlain, short masterOff,
                               byte[] wrappedOut, short wrappedOff,
                               byte[] iv, short ivOff) {
         AESKey pinKeyObj = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
         pinKeyObj.setKey(pinKey, (short)0);
-        aesCipher.init(pinKeyObj, Cipher.MODE_ENCRYPT, iv, ivOff, (short)16);
-        aesCipher.doFinal(masterPlain, masterOff, AES_KEY_SIZE, wrappedOut, wrappedOff);
+        cbcCipher.init(pinKeyObj, Cipher.MODE_ENCRYPT, iv, ivOff, (short)16);
+        cbcCipher.doFinal(masterPlain, masterOff, AES_KEY_SIZE, wrappedOut, wrappedOff);
     }
 
-    /** Unwrap master key ciphertext into aesKey (plaintext) using current PIN key. */
+    /** Unwrap master key ciphertext into aesKey (plaintext) using current PIN key (CBC mode). */
     public void unwrapMasterKey(byte[] wrapped, short wrappedOff,
                                 byte[] iv, short ivOff) {
         AESKey pinKeyObj = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
         pinKeyObj.setKey(pinKey, (short)0);
-        aesCipher.init(pinKeyObj, Cipher.MODE_DECRYPT, iv, ivOff, (short)16);
-        aesCipher.doFinal(wrapped, wrappedOff, AES_KEY_SIZE, aesKey, (short)0);
+        cbcCipher.init(pinKeyObj, Cipher.MODE_DECRYPT, iv, ivOff, (short)16);
+        cbcCipher.doFinal(wrapped, wrappedOff, AES_KEY_SIZE, aesKey, (short)0);
         keyReady = true;
     }
 
@@ -77,7 +79,7 @@ public class CryptoManager {
         wrapMasterKey(aesKey, (short)0, wrappedOut, wrappedOff, iv, ivOff);
     }
 
-    /** Encrypt data with master key. ptLen must be multiple of 16. */
+    /** Encrypt data with master key (CBC mode). ptLen must be multiple of 16. */
     public void encrypt(byte[] plaintext, short ptOff, short ptLen,
                        byte[] ciphertext, short ctOff,
                        byte[] iv, short ivOff) {
@@ -89,11 +91,11 @@ public class CryptoManager {
         }
         AESKey aesKeyObj = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
         aesKeyObj.setKey(aesKey, (short)0);
-        aesCipher.init(aesKeyObj, Cipher.MODE_ENCRYPT, iv, ivOff, (short)16);
-        aesCipher.doFinal(plaintext, ptOff, ptLen, ciphertext, ctOff);
+        cbcCipher.init(aesKeyObj, Cipher.MODE_ENCRYPT, iv, ivOff, (short)16);
+        cbcCipher.doFinal(plaintext, ptOff, ptLen, ciphertext, ctOff);
     }
 
-    /** Decrypt data with master key. ctLen must be multiple of 16. */
+    /** Decrypt data with master key (CBC mode). ctLen must be multiple of 16. */
     public void decrypt(byte[] ciphertext, short ctOff, short ctLen,
                        byte[] plaintext, short ptOff,
                        byte[] iv, short ivOff) {
@@ -105,8 +107,38 @@ public class CryptoManager {
         }
         AESKey aesKeyObj = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
         aesKeyObj.setKey(aesKey, (short)0);
-        aesCipher.init(aesKeyObj, Cipher.MODE_DECRYPT, iv, ivOff, (short)16);
-        aesCipher.doFinal(ciphertext, ctOff, ctLen, plaintext, ptOff);
+        cbcCipher.init(aesKeyObj, Cipher.MODE_DECRYPT, iv, ivOff, (short)16);
+        cbcCipher.doFinal(ciphertext, ctOff, ctLen, plaintext, ptOff);
+    }
+
+    /** Encrypt photo with master key using ECB mode. Data must be padded to multiple of 16. */
+    public void encryptPhotoECB(byte[] plaintext, short ptOff, short ptLen,
+                                byte[] ciphertext, short ctOff) {
+        if (!keyReady) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        if (ptLen % 16 != 0) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        AESKey aesKeyObj = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
+        aesKeyObj.setKey(aesKey, (short)0);
+        ecbCipher.init(aesKeyObj, Cipher.MODE_ENCRYPT);
+        ecbCipher.doFinal(plaintext, ptOff, ptLen, ciphertext, ctOff);
+    }
+
+    /** Decrypt photo with master key using ECB mode. ctLen must be multiple of 16. */
+    public void decryptPhotoECB(byte[] ciphertext, short ctOff, short ctLen,
+                                byte[] plaintext, short ptOff) {
+        if (!keyReady) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        if (ctLen % 16 != 0) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        AESKey aesKeyObj = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
+        aesKeyObj.setKey(aesKey, (short)0);
+        ecbCipher.init(aesKeyObj, Cipher.MODE_DECRYPT);
+        ecbCipher.doFinal(ciphertext, ctOff, ctLen, plaintext, ptOff);
     }
 
     /** Clear all secrets from RAM. */

@@ -42,6 +42,12 @@ public class CustomerCardApplet extends Applet {
     private static final byte INS_GET_RSA_STATUS = (byte) 0x1C;
     private static final byte INS_GENERATE_RSA_KEYPAIR = (byte) 0x1D;
     private static final byte INS_GET_PUBLIC_KEY = (byte) 0x1E;
+    
+    // Admin PIN management instruction codes
+    private static final byte INS_VERIFY_ADMIN_PIN = (byte) 0x1F;
+    private static final byte INS_CHANGE_ADMIN_PIN = (byte) 0x20;
+    private static final byte INS_RESET_USER_PIN = (byte) 0x21;
+    private static final byte INS_GET_ADMIN_PIN_TRIES = (byte) 0x22;
 
     private static final short SW_SECURITY_STATUS_NOT_SATISFIED = (short) 0x6982;
     private static final short SW_AUTHENTICATION_METHOD_BLOCKED = (short) 0x6983;
@@ -94,7 +100,7 @@ public class CustomerCardApplet extends Applet {
             	break;
             case INS_FINISH_PHOTO_WRITE: 
             	requireAuthenticated(); 
-            	model.finishPhotoWrite(apdu); 
+            	model.finishPhotoWrite(apdu, cryptoMgr); 
             	break;
             case INS_READ_INFO: 
             	requireAuthenticated(); 
@@ -102,7 +108,7 @@ public class CustomerCardApplet extends Applet {
             	break;
             case INS_READ_PHOTO_CHUNK: 
             	requireAuthenticated(); 
-            	model.readPhotoChunk(apdu); 
+            	model.readPhotoChunk(apdu, cryptoMgr); 
             	break;
             case INS_RECHARGE_BALANCE: 
             	requireAuthenticated(); 
@@ -162,6 +168,13 @@ public class CustomerCardApplet extends Applet {
             case INS_GET_PUBLIC_KEY:
             	getPublicKey(apdu);
             	break;
+            
+            // Admin PIN management
+            case INS_VERIFY_ADMIN_PIN: verifyAdminPIN(apdu); break;
+            case INS_CHANGE_ADMIN_PIN: changeAdminPIN(apdu); break;
+            case INS_RESET_USER_PIN: resetUserPIN(apdu); break;
+            case INS_GET_ADMIN_PIN_TRIES: pinMgr.getAdminPinTries(apdu); break;
+            
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
@@ -404,6 +417,43 @@ public class CustomerCardApplet extends Applet {
         apdu.setOutgoing();
         apdu.setOutgoingLength(len);
         apdu.sendBytesLong(buf, (short)0, len);
+    }
+    
+    private void verifyAdminPIN(APDU apdu) {
+        byte[] buf = apdu.getBuffer();
+        short lc = apdu.setIncomingAndReceive();
+
+        if (pinMgr.verifyAdmin(buf, ISO7816.OFFSET_CDATA, (byte)lc)) {
+            // Verify thành công - key đã được derive trong pinMgr.verifyAdmin()
+            model.setDataReady(true);
+            if (!model.isDataEncrypted()) {
+                model.initializeBalance(cryptoMgr);
+            }
+        } else {
+            model.setDataReady(false);
+            cryptoMgr.clearKey();
+            if (pinMgr.getAdminTriesRemaining() == 0) {
+                ISOException.throwIt(SW_AUTHENTICATION_METHOD_BLOCKED);
+            } else {
+                ISOException.throwIt((short)0x6A80);
+            }
+        }
+    }
+
+    private void changeAdminPIN(APDU apdu) {
+        // Must be authenticated with admin PIN first
+        if (!pinMgr.isAdminPINValidated()) {
+            ISOException.throwIt((short)0x6985);  // Conditions of use not satisfied - must verify admin PIN first
+        }
+        pinMgr.changeAdminPIN(apdu);
+    }
+    
+    private void resetUserPIN(APDU apdu) {
+        // Must be authenticated with admin PIN first
+        if (!pinMgr.isAdminPINValidated()) {
+            ISOException.throwIt((short)0x6985);  // Conditions of use not satisfied - must verify admin PIN first
+        }
+        pinMgr.resetUserPIN(apdu);
     }
     
     public void deselect() {

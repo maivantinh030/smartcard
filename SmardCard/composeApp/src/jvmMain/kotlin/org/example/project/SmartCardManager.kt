@@ -181,6 +181,71 @@ class SmartCardManager {
         }
     }
 
+    // ==================== ADMIN PIN MANAGEMENT ====================
+
+    /**
+     * Verify Admin PIN
+     * INS: 0x1F
+     */
+    fun verifyAdminPIN(pin: String): Boolean {
+        return try {
+            val pinBytes = pin.toByteArray()
+            val cmd = byteArrayOf(0x80.toByte(), 0x1F, 0x00, 0x00, pinBytes.size.toByte()) + pinBytes
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Admin PIN verified successfully")
+                    true
+                }
+                0x6983 -> {
+                    println("Admin PIN blocked - too many wrong attempts")
+                    false
+                }
+                0x6A80 -> {
+                    println("Wrong Admin PIN")
+                    false
+                }
+                else -> {
+                    println("Admin PIN verification failed: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error verifying Admin PIN: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Get Admin PIN Status
+     * INS: 0x22
+     * Returns: Triple(triesRemaining, pinCreated, pinValidated)
+     */
+    fun getAdminPINStatus(): Triple<Int, Boolean, Boolean> {
+        return try {
+            val cmd = byteArrayOf(0x80.toByte(), 0x22, 0x00, 0x00, 0x00)
+            println("Sending Admin PIN Status Command: ${cmd.joinToString(" ") { String.format("%02X", it) }}")
+            val response = this.sendCommand(cmd) ?: return Triple(-1, false, false)
+            println("Admin PIN Status Response: ${response.joinToString(" ") { String.format("%02X", it) }}")
+            val sw = getStatusWord(response)
+            if (sw == 0x9000 && response.size >= 5) {
+                val data = response.dropLast(2).toByteArray()
+                val triesLeft = data[0].toInt() and 0xFF
+                val pinCreated = data[1].toInt() == 1
+                val pinValidated = data[2].toInt() == 1
+
+                Triple(triesLeft, pinCreated, pinValidated)
+            } else {
+                Triple(-1, false, false)
+            }
+        } catch (e: Exception) {
+            println("Error getting Admin PIN status: ${e.message}")
+            Triple(-1, false, false)
+        }
+    }
+
     fun resetPinCounter(): Boolean {
         return try {
             val cmd = byteArrayOf(0x80.toByte(), 0x05, 0x00, 0x00, 0x00)

@@ -11,7 +11,7 @@
         import org.example.project.auth.AdminSession
         import org.example.project.config.ServerConfig
         import org.example.project.screen.ConnectScreen
-        import org.example.project.screen.PinEntryScreen
+        import org.example.project.screen.admin.AdminPinEntryScreen
         import org.example.project.screen.admin.AdminGameManagementScreen
         import org.example.project.screen.admin.AdminLoginScreen
         import org.example.project.screen.admin.AdminMainMenuScreen
@@ -64,7 +64,7 @@
                     )
                 }
                 AdminScreen.PIN_ENTRY -> {
-                    PinEntryScreen(
+                    AdminPinEntryScreen(
                         smartCardManager = smartCardManager,
                         onPinVerified = { currentScreen = AdminScreen.MAIN }
                     )
