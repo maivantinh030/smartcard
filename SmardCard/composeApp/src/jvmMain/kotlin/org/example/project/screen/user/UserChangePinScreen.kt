@@ -244,7 +244,7 @@ fun UserChangePinScreen(
                                     val success = smartCardManager.changePIN(currentPin, newPin)
 
                                     if (success) {
-                                        status = "✅ Đổi PIN thành công!  Vui lòng nhớ PIN mới:  $newPin"
+                                        status = "✅ Đổi PIN thành công!"
                                         currentPin = ""
                                         newPin = ""
                                         confirmPin = ""
