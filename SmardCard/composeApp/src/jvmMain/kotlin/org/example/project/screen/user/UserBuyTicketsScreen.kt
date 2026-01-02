@@ -29,7 +29,9 @@ import kotlinx.coroutines.launch
 import org.example.project.SmartCardManager
 import org.example.project.screen.FloatingBubbles
 import org.example.project.network.GameApiClient
+import org.example.project.network.TransactionApiClient
 import org.example.project.model.GameDto
+import org.example.project.model.CreateTransactionRequest
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.toComposeImageBitmap
@@ -806,6 +808,7 @@ fun UserBuyTicketsScreen(
 
     var cart by remember { mutableStateOf<List<GameTicket>>(emptyList()) }
     val gameApiClient = remember { GameApiClient() }
+    val transactionApiClient = remember { TransactionApiClient() }
 
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()  // ✅ THÊM
@@ -1366,6 +1369,10 @@ fun UserBuyTicketsScreen(
                                     status = "Đang ghi lượt lên thẻ..."
                                     var successCount = 0
                                     var failCount = 0
+                                    
+                                    // Lấy customerId từ thẻ
+                                    val customerInfo = smartCardManager.readCustomerInfo()
+                                    val customerId = customerInfo["customerID"] ?: ""
 
                                     cart.filter { it.quantity > 0 }.forEach { game ->
                                         println("🎫 Ghi ${game.quantity} lượt cho game ${game.name} (code: ${game.gameCode})...")
@@ -1378,6 +1385,21 @@ fun UserBuyTicketsScreen(
                                         if (ticketSuccess) {
                                             successCount++
                                             println("   ✅ Thành công!")
+                                            
+                                            // Ghi lịch sử mua vé
+                                            if (customerId.isNotBlank()) {
+                                                val txnReq = CreateTransactionRequest(
+                                                    customerId = customerId,
+                                                    type = "PURCHASE",
+                                                    amount = (game.quantity * game.price * 1000).toString(), // price is nghìn đồng → nhân 1000 để ghi VNĐ
+                                                    gameCode = game.gameCode,
+                                                    tickets = game.quantity,
+                                                    balanceAfter = smartCardManager.checkBalance()
+                                                )
+                                                transactionApiClient.record(txnReq)
+                                                    .onSuccess { println("📝 Đã ghi lịch sử mua vé game ${game.gameCode}") }
+                                                    .onFailure { println("⚠️ Không ghi được lịch sử: ${it.message}") }
+                                            }
                                         } else {
                                             failCount++
                                             println("   ❌ Thất bại!")

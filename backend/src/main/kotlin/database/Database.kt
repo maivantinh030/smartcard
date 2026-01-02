@@ -37,7 +37,8 @@ fun Application.configureDatabase() {
         SchemaUtils.createMissingTablesAndColumns(
             AdminAccounts,
             Games,
-            CustomerKeys
+            CustomerKeys,
+            TransactionHistory
         )
         // Insert sample admin nếu chưa có
         initializeSampleData()

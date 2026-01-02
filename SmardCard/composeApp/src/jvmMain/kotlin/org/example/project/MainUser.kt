@@ -19,7 +19,8 @@ enum class UserScreen {
     UPDATE_INFO,
     BUY_TICKETS,  // ✅ ĐỔI TÊN
     GAMES,
-    CHANGE_PIN
+    CHANGE_PIN,
+    HISTORY
 }
 
 @Composable
@@ -50,6 +51,7 @@ fun UserApp() {
                 onNavigateUpdateInfo = { currentScreen = UserScreen.UPDATE_INFO },
                 onNavigateBuyTickets = { currentScreen = UserScreen.BUY_TICKETS }, // ✅ ĐỔI TÊN
                 onNavigateGames = { currentScreen = UserScreen.GAMES },
+                onNavigateHistory = { currentScreen = UserScreen.HISTORY },
                 onNavigateChangePin = { currentScreen = UserScreen. CHANGE_PIN },
                 onDisconnect = {
                     smartCardManager.disconnect()
@@ -88,6 +90,12 @@ fun UserApp() {
 
         UserScreen. CHANGE_PIN -> {
             UserChangePinScreen(
+                smartCardManager = smartCardManager,
+                onBack = { currentScreen = UserScreen.MAIN }
+            )
+        }
+        UserScreen.HISTORY -> {
+            UserHistoryScreen(
                 smartCardManager = smartCardManager,
                 onBack = { currentScreen = UserScreen.MAIN }
             )

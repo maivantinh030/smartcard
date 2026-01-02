@@ -278,6 +278,7 @@ fun AdminMainMenuScreen(
     onNavigateWriteInfo: () -> Unit,
     onNavigateRecharge: () -> Unit,
     onNavigateGameManagement: () -> Unit,
+    onNavigateRevenue: () -> Unit,
     onNavigateViewCustomer: () -> Unit,
     onNavigateSettings: () -> Unit,
     onDisconnect: () -> Unit
@@ -325,6 +326,16 @@ fun AdminMainMenuScreen(
                     Color(0xFFCE93D8)
                 ),
                 onClick = onNavigateGameManagement
+            ),
+            AdminMenuOption(
+                title = "Doanh thu",
+                emoji = "📊",
+                description = "Thống kê ngày/tháng/game",
+                gradientColors = listOf(
+                    Color(0xFF26C6DA),
+                    Color(0xFF80DEEA)
+                ),
+                onClick = onNavigateRevenue
             )
         )
     }

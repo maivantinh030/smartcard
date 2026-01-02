@@ -273,6 +273,7 @@ fun UserMainMenuScreen(
     onNavigateUpdateInfo: () -> Unit,
     onNavigateBuyTickets:  () -> Unit,
     onNavigateGames: () -> Unit,
+    onNavigateHistory: () -> Unit,
     onNavigateChangePin:  () -> Unit,
     onDisconnect: () -> Unit
 ) {
@@ -319,6 +320,16 @@ fun UserMainMenuScreen(
                     Color(0xFFCE93D8)
                 ),
                 onClick = onNavigateGames
+            ),
+            UserMenuOption(
+                title = "Lịch sử giao dịch",
+                emoji = "🧾",
+                description = "Xem mua vé & nạp tiền",
+                gradientColors = listOf(
+                    Color(0xFF26C6DA),
+                    Color(0xFF80DEEA)
+                ),
+                onClick = onNavigateHistory
             ),
             UserMenuOption(
                 title = "Đổi mã PIN",

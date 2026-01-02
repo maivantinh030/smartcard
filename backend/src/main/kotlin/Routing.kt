@@ -36,6 +36,7 @@ fun Application.configureRouting() {
             adminAuthRoutes()
             gameRoutes()
             rsaRoutes()
+            transactionRoutes()
         }
 
         // Static files (nếu cần serve frontend)

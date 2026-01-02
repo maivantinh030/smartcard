@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.example.project.SmartCardManager
 import org.example.project.screen.FloatingBubbles
+import org.example.project.network.TransactionApiClient
+import org.example.project.model.CreateTransactionRequest
 
 //@OptIn(ExperimentalMaterial3Api::class)
 //@Composable
@@ -341,6 +343,7 @@ fun AdminRechargeScreen(
 
     val scope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
+    val transactionApiClient = remember { TransactionApiClient() }
 
     fun loadBalance() {
         scope.launch {
@@ -689,7 +692,25 @@ fun AdminRechargeScreen(
                                         isLoading = true
                                         val success = smartCardManager.rechargeBalance(amount / 1000)
                                         if (success) {
+                                            // Lấy customerId từ thẻ
+                                            val customerInfo = smartCardManager.readCustomerInfo()
+                                            val customerId = customerInfo["customerID"] ?: ""
+                                            
                                             loadBalance()
+                                            
+                                            // Ghi lịch sử nạp tiền
+                                            if (customerId.isNotBlank()) {
+                                                val txnReq = CreateTransactionRequest(
+                                                    customerId = customerId,
+                                                    type = "TOPUP",
+                                                    amount = amount.toString(),
+                                                    balanceAfter = smartCardManager.checkBalance()
+                                                )
+                                                transactionApiClient.record(txnReq)
+                                                    .onSuccess { println("📝 Đã ghi lịch sử nạp tiền") }
+                                                    .onFailure { println("⚠️ Không ghi được lịch sử nạp: ${it.message}") }
+                                            }
+                                            
                                             rechargeAmount = ""
                                             status = "✅ Nạp thành công ${String.format("%,d", amount)} VNĐ"
                                         } else {

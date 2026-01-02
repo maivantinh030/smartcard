@@ -16,6 +16,7 @@
         import org.example.project.screen.admin.AdminLoginScreen
         import org.example.project.screen.admin.AdminMainMenuScreen
         import org.example.project.screen.admin.AdminRechargeScreen
+        import org.example.project.screen.admin.AdminRevenueScreen
         import org.example.project.screen.admin.AdminRSAAuthScreen
         import org.example.project.screen.admin.AdminSettingsScreen
         import org.example.project.screen.admin.AdminViewCustomerScreen
@@ -30,6 +31,7 @@
             VIEW_CUSTOMER,
             RECHARGE,
             GAME_MANAGEMENT,
+            REVENUE,
             RSA_AUTH,
             SETTINGS
         }
@@ -73,6 +75,7 @@
                         onNavigateWriteInfo = { currentScreen = AdminScreen.WRITE_INFO },
                         onNavigateRecharge = { currentScreen = AdminScreen.RECHARGE },
                         onNavigateGameManagement = { currentScreen = AdminScreen.GAME_MANAGEMENT },
+                        onNavigateRevenue = { currentScreen = AdminScreen.REVENUE },
                         onNavigateViewCustomer = { currentScreen = AdminScreen.VIEW_CUSTOMER },
                         onNavigateSettings = { currentScreen = AdminScreen.SETTINGS },
                         onDisconnect = {
@@ -108,6 +111,11 @@
                 AdminScreen.RSA_AUTH -> {
                     AdminRSAAuthScreen(
                         smartCardManager = smartCardManager,
+                        onBack = { currentScreen = AdminScreen.MAIN }
+                    )
+                }
+                AdminScreen.REVENUE -> {
+                    AdminRevenueScreen(
                         onBack = { currentScreen = AdminScreen.MAIN }
                     )
                 }
