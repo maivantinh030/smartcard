@@ -21,6 +21,7 @@
         import org.example.project.screen.admin.AdminSettingsScreen
         import org.example.project.screen.admin.AdminViewCustomerScreen
         import org.example.project.screen.admin.AdminWriteInfoScreen
+        import org.example.project.screen.admin.AdminResetUserPinScreen
 
         enum class AdminScreen {
             ADMIN_LOGIN,
@@ -33,7 +34,8 @@
             GAME_MANAGEMENT,
             REVENUE,
             RSA_AUTH,
-            SETTINGS
+            SETTINGS,
+            RESET_USER_PIN
         }
 
         @Composable
@@ -78,6 +80,7 @@
                         onNavigateRevenue = { currentScreen = AdminScreen.REVENUE },
                         onNavigateViewCustomer = { currentScreen = AdminScreen.VIEW_CUSTOMER },
                         onNavigateSettings = { currentScreen = AdminScreen.SETTINGS },
+                        onNavigateResetUserPin = { currentScreen = AdminScreen.RESET_USER_PIN },
                         onDisconnect = {
                             smartCardManager.disconnect()
                             currentScreen = AdminScreen.ADMIN_LOGIN
@@ -121,6 +124,12 @@
                 }
                 AdminScreen.SETTINGS -> {
                     AdminSettingsScreen(
+                        smartCardManager = smartCardManager,
+                        onBack = { currentScreen = AdminScreen.MAIN }
+                    )
+                }
+                AdminScreen.RESET_USER_PIN -> {
+                    AdminResetUserPinScreen(
                         smartCardManager = smartCardManager,
                         onBack = { currentScreen = AdminScreen.MAIN }
                     )
