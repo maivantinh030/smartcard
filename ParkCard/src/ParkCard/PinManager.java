@@ -32,6 +32,10 @@ public class PinManager {
 
     public void setCryptoManager(CryptoManager crypto) { this.cryptoManager = crypto; }
     public void setCardModel(CardModel model) { this.cardModel = model; }
+    
+    public boolean isPINValidated() {
+        return userPIN.isValidated();
+    }
 
     public void createPIN(APDU apdu) {
         if (pinCreated) ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
@@ -62,46 +66,50 @@ public class PinManager {
 
     public byte getTriesRemaining() { return userPIN.getTriesRemaining(); }
 
-    /**
-     * Change PIN -> unwrap master with old PIN -> rewrap with new PIN (no bulk re-encrypt).
-     */
-    public void changePIN(APDU apdu) {
-        if (!pinCreated) ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-
-        byte[] buf = apdu.getBuffer();
-        apdu.setIncomingAndReceive();
-        byte oldLen = buf[ISO7816.OFFSET_CDATA];
-        short oldOffset = (short)(ISO7816.OFFSET_CDATA + 1);
-        byte newLen = buf[(short)(oldOffset + oldLen)];
-        short newOffset = (short)(oldOffset + oldLen + 1);
-
-        if (newLen < PIN_MIN_LENGTH || newLen > PIN_MAX_LENGTH) {
-            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-        }
-
-        // Verify old PIN
-        if (!userPIN.check(buf, oldOffset, oldLen)) {
-            ISOException.throwIt((short)0x6A80);
-        }
-
-        if (cardModel != null && cryptoManager != null) {
-            byte[] salt = cardModel.getSalt();
-            // Derive PIN key from old PIN to unwrap current master key
-            cryptoManager.deriveKeyFromPIN(buf, oldOffset, oldLen, salt, (short)0, (short)16);
-            if (!cardModel.isMasterKeyWrapped()) {
-                cardModel.ensureMasterKey(cryptoManager);
-            }
-            cryptoManager.unwrapMasterKey(cardModel.getWrappedMasterKey(), (short)0, cardModel.getIV(), (short)0);
-
-            // Derive PIN key from new PIN and rewrap master key
-            cryptoManager.deriveKeyFromPIN(buf, newOffset, newLen, salt, (short)0, (short)16);
-            cryptoManager.wrapLoadedMasterKey(cardModel.getWrappedMasterKey(), (short)0, cardModel.getIV(), (short)0);
-            cardModel.setMasterKeyWrapped(true);
-        }
-
-        // Update stored PIN
-        userPIN.update(buf, newOffset, newLen);
-    }
+		/**
+		 * Change PIN -> unwrap master with old PIN -> rewrap with new PIN (no bulk re-encrypt).
+		 * Assumes old PIN has already been verified via verify() call.
+		 */
+		public void changePIN(APDU apdu) {
+			byte[] buf = apdu.getBuffer();
+			apdu.setIncomingAndReceive();
+			
+			byte oldLen = buf[ISO7816.OFFSET_CDATA];
+			short oldOffset = (short)(ISO7816.OFFSET_CDATA + 1);
+			byte newLen = buf[(short)(oldOffset + oldLen)];
+			short newOffset = (short)(oldOffset + oldLen + 1);
+			
+			// Validate length
+			if (newLen < PIN_MIN_LENGTH || newLen > PIN_MAX_LENGTH) {
+				ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+			}
+			
+			// Verify old PIN
+			if (!userPIN.check(buf, oldOffset, oldLen)) {
+				ISOException.throwIt((short)(0x63C0 | userPIN.getTriesRemaining()));
+			}
+			
+			// Re-wrap master key vi new PIN (nu có crypto setup)
+			if (cardModel != null && cryptoManager != null && cryptoManager.isKeyReady()) {
+				byte[] salt = cardModel.getSalt();
+				byte[] iv = cardModel.getIV();
+				
+				// Derive new PIN key (preserve loaded master key)
+				cryptoManager.deriveKeyFromPIN(buf, newOffset, newLen, salt, (short)0, (short)16, true);
+				
+				// Re-wrap master key vi new PIN key
+				cryptoManager.wrapLoadedMasterKey(
+					cardModel.getWrappedMasterKey(), (short)0, 
+					iv, (short)0
+				);
+			}
+			
+			// Update PIN
+			userPIN.update(buf, newOffset, newLen);
+			
+			// Restore authenticated state
+			userPIN.check(buf, newOffset, newLen);
+		}
 
     public void getPinTries(APDU apdu) {
         byte[] buf = apdu.getBuffer();
