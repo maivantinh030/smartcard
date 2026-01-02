@@ -184,6 +184,42 @@ class SmartCardManager {
     // ==================== ADMIN PIN MANAGEMENT ====================
 
     /**
+     * Create Admin PIN
+     * INS: 0x20
+     */
+    fun createAdminPIN(pin: String): Boolean {
+        return try {
+            val pinBytes = pin.toByteArray()
+            if (pinBytes.size < 4 || pinBytes.size > 8) {
+                println("Admin PIN must be 4-8 characters")
+                return false
+            }
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x20, 0x00, 0x00, pinBytes.size.toByte()) + pinBytes
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Admin PIN created successfully")
+                    true
+                }
+                0x6981 -> {
+                    println("Admin PIN already created")
+                    false
+                }
+                else -> {
+                    println("Failed to create Admin PIN: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error creating Admin PIN: ${e.message}")
+            false
+        }
+    }
+
+    /**
      * Verify Admin PIN
      * INS: 0x1F
      */
@@ -243,6 +279,47 @@ class SmartCardManager {
         } catch (e: Exception) {
             println("Error getting Admin PIN status: ${e.message}")
             Triple(-1, false, false)
+        }
+    }
+
+    /**
+     * Reset User PIN (Admin only)
+     * INS: 0x21
+     * Input: [newPinLength(1)][newPin bytes]
+     */
+    fun resetUserPIN(newPin: String): Boolean {
+        return try {
+            val pinBytes = newPin.toByteArray()
+            if (pinBytes.size < 4 || pinBytes.size > 8) {
+                println("PIN length must be between 4 and 8")
+                return false
+            }
+            val cmd = byteArrayOf(0x80.toByte(), 0x21, 0x00, 0x00, (pinBytes.size + 1).toByte()) + 
+                     byteArrayOf(pinBytes.size.toByte()) + pinBytes
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("User PIN reset successfully")
+                    true
+                }
+                0x6985 -> {
+                    println("Admin PIN not verified - must verify admin PIN first")
+                    false
+                }
+                0x6982 -> {
+                    println("Security status not satisfied")
+                    false
+                }
+                else -> {
+                    println("Failed to reset user PIN: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error resetting user PIN: ${e.message}")
+            false
         }
     }
 

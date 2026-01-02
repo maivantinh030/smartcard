@@ -281,6 +281,7 @@ fun AdminMainMenuScreen(
     onNavigateRevenue: () -> Unit,
     onNavigateViewCustomer: () -> Unit,
     onNavigateSettings: () -> Unit,
+    onNavigateResetUserPin: () -> Unit,
     onDisconnect: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -336,6 +337,16 @@ fun AdminMainMenuScreen(
                     Color(0xFF80DEEA)
                 ),
                 onClick = onNavigateRevenue
+            ),
+            AdminMenuOption(
+                title = "Reset User PIN",
+                emoji = "🔐",
+                description = "Đặt lại PIN cho user",
+                gradientColors = listOf(
+                    Color(0xFF9C27B0),
+                    Color(0xFFBA68C8)
+                ),
+                onClick = onNavigateResetUserPin
             )
         )
     }
