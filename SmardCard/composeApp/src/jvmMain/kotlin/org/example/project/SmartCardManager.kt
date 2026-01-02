@@ -184,6 +184,42 @@ class SmartCardManager {
     // ==================== ADMIN PIN MANAGEMENT ====================
 
     /**
+     * Create Admin PIN
+     * INS: 0x20
+     */
+    fun createAdminPIN(pin: String): Boolean {
+        return try {
+            val pinBytes = pin.toByteArray()
+            if (pinBytes.size < 4 || pinBytes.size > 8) {
+                println("Admin PIN must be 4-8 characters")
+                return false
+            }
+
+            val cmd = byteArrayOf(0x80.toByte(), 0x20, 0x00, 0x00, pinBytes.size.toByte()) + pinBytes
+            val response = sendCommand(cmd) ?: return false
+
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("Admin PIN created successfully")
+                    true
+                }
+                0x6981 -> {
+                    println("Admin PIN already created")
+                    false
+                }
+                else -> {
+                    println("Failed to create Admin PIN: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error creating Admin PIN: ${e.message}")
+            false
+        }
+    }
+
+    /**
      * Verify Admin PIN
      * INS: 0x1F
      */

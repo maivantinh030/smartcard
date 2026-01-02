@@ -13,7 +13,6 @@ public class CustomerCardApplet extends Applet {
     private static final byte INS_CHANGE_PIN = (byte) 0x03;
     private static final byte INS_GET_PIN_TRIES = (byte) 0x04;
     private static final byte INS_RESET_PIN_COUNTER = (byte) 0x05;
-    private static final byte INS_RESET_WITH_PUK = (byte) 0x06;
     private static final byte INS_WRITE_INFO = (byte) 0x07;
     private static final byte INS_START_PHOTO_WRITE = (byte) 0x08;
     private static final byte INS_WRITE_PHOTO_CHUNK = (byte) 0x09;
@@ -44,8 +43,8 @@ public class CustomerCardApplet extends Applet {
     private static final byte INS_GET_PUBLIC_KEY = (byte) 0x1E;
     
     // Admin PIN management instruction codes
+    private static final byte INS_CREATE_ADMIN_PIN = (byte) 0x20;
     private static final byte INS_VERIFY_ADMIN_PIN = (byte) 0x1F;
-    private static final byte INS_CHANGE_ADMIN_PIN = (byte) 0x20;
     private static final byte INS_RESET_USER_PIN = (byte) 0x21;
     private static final byte INS_GET_ADMIN_PIN_TRIES = (byte) 0x22;
 
@@ -82,7 +81,6 @@ public class CustomerCardApplet extends Applet {
             case INS_CHANGE_PIN: changePIN(apdu); break;
             case INS_GET_PIN_TRIES: pinMgr.getPinTries(apdu); break;
             case INS_RESET_PIN_COUNTER: pinMgr.resetPinCounter(apdu); break;
-            case INS_RESET_WITH_PUK: resetWithPUK(apdu); break;
             case INS_GET_CRYPTO_INFO: getCryptoInfo(apdu); break;
             
             // Commands cn authentication v� encryption
@@ -170,8 +168,8 @@ public class CustomerCardApplet extends Applet {
             	break;
             
             // Admin PIN management
+            case INS_CREATE_ADMIN_PIN: pinMgr.createAdminPIN(apdu); break;
             case INS_VERIFY_ADMIN_PIN: verifyAdminPIN(apdu); break;
-            case INS_CHANGE_ADMIN_PIN: changeAdminPIN(apdu); break;
             case INS_RESET_USER_PIN: resetUserPIN(apdu); break;
             case INS_GET_ADMIN_PIN_TRIES: pinMgr.getAdminPinTries(apdu); break;
             
@@ -215,12 +213,6 @@ public class CustomerCardApplet extends Applet {
         pinMgr.changePIN(apdu);
         // PinManager đã xử lý việc keep authentication state và master key
         // Không cần reset vì user vẫn authenticated sau khi đổi PIN thành công
-    }
-
-    private void resetWithPUK(APDU apdu) {
-        pinMgr.resetWithPUK(apdu);
-        model.setDataReady(false); // require verify with new PIN before crypto ops
-        cryptoMgr.clearKey();
     }
     
     /**
@@ -438,14 +430,6 @@ public class CustomerCardApplet extends Applet {
                 ISOException.throwIt((short)0x6A80);
             }
         }
-    }
-
-    private void changeAdminPIN(APDU apdu) {
-        // Must be authenticated with admin PIN first
-        if (!pinMgr.isAdminPINValidated()) {
-            ISOException.throwIt((short)0x6985);  // Conditions of use not satisfied - must verify admin PIN first
-        }
-        pinMgr.changeAdminPIN(apdu);
     }
     
     private void resetUserPIN(APDU apdu) {
