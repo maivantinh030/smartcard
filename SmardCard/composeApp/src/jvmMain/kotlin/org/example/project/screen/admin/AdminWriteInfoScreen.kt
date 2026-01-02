@@ -1329,7 +1329,13 @@ fun AdminWriteInfoScreen(
                     // HỌ VÀ TÊN
                     OutlinedTextField(
                         value = name,
-                        onValueChange = { if (it.length <= 50) name = it },
+                        onValueChange = { newValue ->
+                            // ✅ CHỈ CHO PHÉP CHỮ CÁI + KHOẢNG TRẮNG
+                            val filtered = newValue.filter { it.isLetter() || it == ' ' }
+                            if (filtered.length <= 50) {
+                                name = filtered
+                            }
+                        },
                         label = { Text("Họ và tên", fontWeight = FontWeight.Bold, fontSize = 15.sp) },  // ✅ TĂNG
                         leadingIcon = {
                             Icon(
@@ -1339,7 +1345,7 @@ fun AdminWriteInfoScreen(
                                 modifier = Modifier.size(24.dp)  // ✅ TĂNG
                             )
                         },
-                        modifier = Modifier.fillMaxWidth().height(64.dp),  // ✅ TĂNG
+                        modifier = Modifier.fillMaxWidth().wrapContentHeight(),  // ✅ TĂNG
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true,
                         textStyle = LocalTextStyle.current.copy(fontSize = 16.sp),  // ✅ TĂNG
@@ -1347,8 +1353,27 @@ fun AdminWriteInfoScreen(
                             focusedBorderColor = Color(0xFFFF6B9D),
                             focusedLabelColor = Color(0xFFFF6B9D),
                             focusedLeadingIconColor = Color(0xFFFF6B9D),
-                            cursorColor = Color(0xFFFF6B9D)
-                        )
+                            cursorColor = Color(0xFFFF6B9D),
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black
+                        ),
+                        supportingText = {
+                            if (name.isNotEmpty() && !name.all { it.isLetter() || it == ' ' }) {
+                                Text(
+                                    text = "⚠️ Chỉ được chứa chữ cái",
+                                    fontSize = 12.sp,
+                                    color = Color.Red,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                Text(
+                                    text = "💡 Chỉ nhập chữ cái và khoảng trắng",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF9575CD)
+                                )
+                            }
+                        },
+                        isError = name.isNotEmpty() && !name.all { it.isLetter() || it == ' ' }
                     )
 
                     Spacer(modifier = Modifier.height(18.dp))
@@ -1411,9 +1436,17 @@ fun AdminWriteInfoScreen(
                     // SỐ ĐIỆN THOẠI
                     OutlinedTextField(
                         value = phoneNumber,
-                        onValueChange = {
-                            if (it.length <= 10 && it.all { c -> c.isDigit() })
-                                phoneNumber = it
+                        onValueChange = { newValue ->
+                            // ✅ CHỈ LẤY SỐ
+                            val digitsOnly = newValue.filter { it.isDigit() }
+
+                            // ✅ VALIDATION:  Bắt đầu bằng 0, tối đa 10 số
+                            phoneNumber = when {
+                                digitsOnly.isEmpty() -> ""
+                                digitsOnly[0] != '0' -> phoneNumber  // Giữ nguyên nếu không bắt đầu bằng 0
+                                digitsOnly. length > 10 -> phoneNumber  // Giữ nguyên nếu quá 10 số
+                                else -> digitsOnly  // Hợp lệ → Cập nhật
+                            }
                         },
                         label = { Text("Số điện thoại", fontWeight = FontWeight.Bold, fontSize = 15.sp) },
                         leadingIcon = {
@@ -1425,7 +1458,7 @@ fun AdminWriteInfoScreen(
                             )
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth().height(64.dp),
+                        modifier = Modifier.fillMaxWidth().wrapContentHeight(),
                         shape = RoundedCornerShape(16.dp),
                         singleLine = true,
                         textStyle = LocalTextStyle.current. copy(fontSize = 16.sp),
@@ -1433,8 +1466,40 @@ fun AdminWriteInfoScreen(
                             focusedBorderColor = Color(0xFF66BB6A),
                             focusedLabelColor = Color(0xFF66BB6A),
                             focusedLeadingIconColor = Color(0xFF66BB6A),
-                            cursorColor = Color(0xFF66BB6A)
-                        )
+                            cursorColor = Color(0xFF66BB6A),
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black
+
+                        ),
+                        supportingText = {
+                            when {
+                                phoneNumber.isNotEmpty() && phoneNumber[0] != '0' -> {
+                                    Text(
+                                        text = "⚠️ Số điện thoại phải bắt đầu từ số 0",
+                                        fontSize = 12.sp,
+                                        color = Color.Red,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                phoneNumber.length in 1..9 -> {
+                                    Text(
+                                        text = "⚠️ Cần đủ 10 số (còn ${10 - phoneNumber.length} số)",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFFFA726),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                else -> {
+                                    Text(
+                                        text = "💡 Bắt đầu bằng 0, tối đa 10 số",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF9575CD)
+                                    )
+                                }
+                            }
+                        },
+                        isError = phoneNumber. isNotEmpty() && (phoneNumber[0] != '0' || phoneNumber.length < 10)
+
                     )
 
                     Spacer(modifier = Modifier. height(28.dp))
