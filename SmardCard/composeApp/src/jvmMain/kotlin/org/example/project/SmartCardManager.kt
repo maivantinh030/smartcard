@@ -1,10 +1,14 @@
 package org.example.project
 
-import javax.smartcardio. Card
+import java.math.BigInteger
+import java.security.KeyFactory
+import java.security.spec.RSAPublicKeySpec
+import java.util.Base64
+import javax.smartcardio.Card
 import javax.smartcardio.CardChannel
-import javax. smartcardio.CardTerminals
+import javax.smartcardio.CardTerminals
 import javax.smartcardio.CommandAPDU
-import javax.smartcardio. TerminalFactory
+import javax.smartcardio.TerminalFactory
 
 class SmartCardManager {
     private var terminals: CardTerminals? = null
@@ -1040,7 +1044,7 @@ class SmartCardManager {
 
     /**
      * Get RSA status (check if keys are configured)
-     * INS: 0x95
+     * INS: 0x1C
      * Returns: true if RSA ready, false otherwise
      */
     fun getRSAStatus(): Boolean {
@@ -1059,6 +1063,102 @@ class SmartCardManager {
         } catch (e: Exception) {
             println("Error getting RSA status: ${e.message}")
             false
+        }
+    }
+    
+    /**
+     * INS_GENERATE_RSA_KEYPAIR (0x1D)
+     * Generate RSA keypair trong thẻ
+     * Lưu ý: Command này mất vài giây để thực hiện
+     */
+    fun generateRSAKeyPair(): Boolean {
+        return try {
+            println("🔄 Generating RSA keypair in card...")
+            val command = byteArrayOf(0x80.toByte(), 0x1D, 0x00, 0x00, 0x00)
+            val response = this.sendCommand(command) ?: return false
+            
+            val success = getStatusWord(response) == 0x9000
+            if (success) {
+                println("✅ RSA keypair generated successfully")
+            } else {
+                println("❌ Failed to generate RSA keypair: ${getStatusWord(response).toString(16)}")
+            }
+            success
+        } catch (e: Exception) {
+            println("⚠️ generateRSAKeyPair error: ${e.message}")
+            false
+        }
+    }
+    
+    /**
+     * INS_GET_PUBLIC_KEY (0x1E)
+     * Lấy RSA public key từ thẻ
+     * component: 0x00 = modulus (128 bytes), 0x01 = exponent (3 bytes)
+     */
+    fun getPublicKeyComponent(component: Byte): ByteArray? {
+        return try {
+            val command = byteArrayOf(0x80.toByte(), 0x1E, 0x00, 0x00, 0x01, component, 0x00)
+            val response = this.sendCommand(command) ?: return null
+            
+            if (getStatusWord(response) == 0x9000) {
+                // Return data without status word
+                response.dropLast(2).toByteArray()
+            } else {
+                println("❌ Failed to get public key component: ${getStatusWord(response).toString(16)}")
+                null
+            }
+        } catch (e: Exception) {
+            println("⚠️ getPublicKeyComponent error: ${e.message}")
+            null
+        }
+    }
+    
+    /**
+     * Lấy full RSA public key (modulus + exponent)
+     * Return: Pair(modulus, exponent) hoặc null nếu thất bại
+     */
+    fun getPublicKey(): Pair<ByteArray, ByteArray>? {
+        return try {
+            val modulus = getPublicKeyComponent(0x00) ?: return null
+            val exponent = getPublicKeyComponent(0x01) ?: return null
+            
+            println("✅ Got public key: modulus=${modulus.size} bytes, exponent=${exponent.size} bytes")
+            Pair(modulus, exponent)
+        } catch (e: Exception) {
+            println("⚠️ getPublicKey error: ${e.message}")
+            null
+        }
+    }
+    
+    /**
+     * Lấy public key và convert sang PEM format
+     * Return: PEM string hoặc null nếu thất bại
+     */
+    fun getPublicKeyAsPEM(): String? {
+        return try {
+            val (modulusBytes, exponentBytes) = getPublicKey() ?: return null
+            
+            // Convert bytes to BigInteger
+            val modulus = BigInteger(1, modulusBytes)
+            val exponent = BigInteger(1, exponentBytes)
+            
+            // Create RSA public key
+            val keySpec = RSAPublicKeySpec(modulus, exponent)
+            val keyFactory = KeyFactory.getInstance("RSA")
+            val publicKey = keyFactory.generatePublic(keySpec)
+            
+            // Convert to PEM format
+            val encoded = publicKey.encoded
+            val base64 = Base64.getEncoder().encodeToString(encoded)
+            val pem = "-----BEGIN PUBLIC KEY-----\n" +
+                    base64.chunked(64).joinToString("\n") +
+                    "\n-----END PUBLIC KEY-----"
+            
+            println("✅ Public key converted to PEM format")
+            pem
+        } catch (e: Exception) {
+            println("⚠️ getPublicKeyAsPEM error: ${e.message}")
+            null
         }
     }
 

@@ -38,14 +38,9 @@ import java.awt.Frame
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.security.KeyPairGenerator
-import java.security.SecureRandom
-import java.security.interfaces.RSAPrivateKey
-import java.security.interfaces.RSAPublicKey
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.Base64
 import javax.imageio.ImageIO
 
 //@OptIn(ExperimentalMaterial3Api::class)
@@ -1570,58 +1565,51 @@ fun AdminWriteInfoScreen(
 
                                     delay(1000)
 
-                                    status = "🔐 Đang tạo RSA key..."
+                                    // ✅ SỬA: Gọi thẻ tự generate RSA keypair
+                                    status = "🔐 Đang set Customer ID..."
                                     delay(300)
 
                                     try {
                                         if (!smartCardManager.setCustomerID(customerID)) {
-                                            status = "⚠️ Không thể set Customer ID cho RSA"
+                                            status = "⚠️ Không thể set Customer ID"
                                         } else {
-                                            val keyGen = KeyPairGenerator.getInstance("RSA")
-                                            keyGen.initialize(1024, SecureRandom())
-                                            val keyPair = keyGen.generateKeyPair()
-
-                                            val privateKey = keyPair.private as RSAPrivateKey
-                                            val publicKey = keyPair. public as RSAPublicKey
-
-                                            val modulusBytes = privateKey.modulus.toByteArray()
-                                            val exponentBytes = privateKey.privateExponent.toByteArray()
-
-                                            val modulusPadded = ByteArray(128)
-                                            val exponentPadded = ByteArray(128)
-
-                                            val modulusStart = maxOf(0, modulusBytes. size - 128)
-                                            val modulusLength = minOf(128, modulusBytes.size)
-                                            System.arraycopy(modulusBytes, modulusStart, modulusPadded, 128 - modulusLength, modulusLength)
-
-                                            val exponentStart = maxOf(0, exponentBytes.size - 128)
-                                            val exponentLength = minOf(128, exponentBytes.size)
-                                            System.arraycopy(exponentBytes, exponentStart, exponentPadded, 128 - exponentLength, exponentLength)
-
-                                            status = "📤 Đang upload private key lên thẻ..."
+                                            status = "🔐 Đang tạo RSA keypair trong thẻ..."
                                             delay(300)
-
-                                            val expSuccess = smartCardManager.setRSAExponent(exponentPadded)
-                                            val modSuccess = smartCardManager.setRSAModulus(modulusPadded)
-
-                                            if (expSuccess && modSuccess) {
-                                                status = "💾 Đang lưu public key lên server..."
-                                                delay(300)
-
-                                                val publicKeyPEM = publicKeyToPEM(publicKey)
-                                                val registerSuccess = registerPublicKeyToServer(customerID, publicKeyPEM)
-
-                                                if (registerSuccess) {
-                                                    status = "✅ Hoàn tất!  Đã ghi ${if (imageData != null) "thông tin + ảnh + RSA key" else "thông tin + RSA key"}"
-                                                } else {
-                                                    status = "⚠️ Đã upload key lên thẻ nhưng lỗi lưu public key lên server"
-                                                }
+                                            
+                                            // Generate keypair trong thẻ (mất vài giây)
+                                            val generateSuccess = withContext(Dispatchers.IO) {
+                                                smartCardManager.generateRSAKeyPair()
+                                            }
+                                            
+                                            if (!generateSuccess) {
+                                                status = "⚠️ Lỗi tạo RSA keypair trong thẻ"
                                             } else {
-                                                status = "⚠️ Ghi thông tin thành công nhưng lỗi upload RSA key"
+                                                status = "📤 Đang lấy public key từ thẻ..."
+                                                delay(300)
+                                                
+                                                // Lấy public key từ thẻ
+                                                val publicKeyPEM = withContext(Dispatchers.IO) {
+                                                    smartCardManager.getPublicKeyAsPEM()
+                                                }
+                                                
+                                                if (publicKeyPEM == null) {
+                                                    status = "⚠️ Không thể lấy public key từ thẻ"
+                                                } else {
+                                                    status = "💾 Đang lưu public key lên server..."
+                                                    delay(300)
+                                                    
+                                                    val registerSuccess = registerPublicKeyToServer(customerID, publicKeyPEM)
+                                                    
+                                                    if (registerSuccess) {
+                                                        status = "✅ Hoàn tất! Đã ghi ${if (imageData != null) "thông tin + ảnh + RSA key" else "thông tin + RSA key"}"
+                                                    } else {
+                                                        status = "⚠️ Đã tạo key trong thẻ nhưng lỗi lưu public key lên server"
+                                                    }
+                                                }
                                             }
                                         }
                                     } catch (rsaException: Exception) {
-                                        status = "⚠️ Ghi thông tin thành công nhưng lỗi tạo RSA:  ${rsaException.message}"
+                                        status = "⚠️ Ghi thông tin thành công nhưng lỗi tạo RSA: ${rsaException.message}"
                                         rsaException.printStackTrace()
                                     }
 
@@ -1749,24 +1737,6 @@ private fun BufferedImage.toComposeImageBitmap(): ImageBitmap {
     ImageIO.write(this, "PNG", baos)
     val bytes = baos.toByteArray()
     return org.jetbrains.skia.Image. makeFromEncoded(bytes).toComposeImageBitmap()
-}
-
-private fun publicKeyToPEM(publicKey: RSAPublicKey): String {
-    val encoded = publicKey.encoded
-    val base64 = Base64.getEncoder().encodeToString(encoded)
-    val pem = StringBuilder()
-    pem.append("-----BEGIN PUBLIC KEY-----\n")
-
-    var index = 0
-    while (index < base64.length) {
-        val end = minOf(index + 64, base64.length)
-        pem.append(base64.substring(index, end))
-        pem.append("\n")
-        index = end
-    }
-
-    pem.append("-----END PUBLIC KEY-----")
-    return pem.toString()
 }
 
 private suspend fun registerPublicKeyToServer(customerId: String, publicKeyPEM: String): Boolean {

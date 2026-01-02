@@ -100,24 +100,24 @@ public class PinManager {
             try {
                 // STEP 1: Backup current wrapped key
                 Util.arrayCopyNonAtomic(originalWrappedKey, (short)0, backupWrappedKey, (short)0, (short)16);
-                
-                // STEP 2: Derive old PIN key v unwrap master key
-                cryptoManager.deriveKeyFromPIN(buf, oldOffset, oldLen, salt, (short)0, (short)16);
-                if (!cardModel.isMasterKeyWrapped()) {
-                    cardModel.ensureMasterKey(cryptoManager);
+               
+                if (!cryptoManager.isKeyReady()) {
+                    ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
                 }
-                cryptoManager.unwrapMasterKey(originalWrappedKey, (short)0, iv, (short)0);
                 
-                // STEP 3: Derive new PIN key but keep the already unwrapped master key usable
+                // STEP 3: Derive new PIN key nhưng PRESERVE master key đã loaded
                 cryptoManager.deriveKeyFromPIN(buf, newOffset, newLen, salt, (short)0, (short)16, true);
+                
+                // STEP 4: Wrap master key hiện tại bằng new PIN key
                 cryptoManager.wrapLoadedMasterKey(newWrappedKey, (short)0, iv, (short)0);
                 
-                // STEP 4: ATOMIC UPDATE - ch update khi  chc chn thnh cng
+                // STEP 5: ATOMIC UPDATE - chỉ update khi chắc chắn thành công
                 Util.arrayCopyNonAtomic(newWrappedKey, (short)0, originalWrappedKey, (short)0, (short)16);
                 cardModel.setMasterKeyWrapped(true);
                 
-                // STEP 5: Update PIN cui cng
+                // STEP 6: Update PIN cuối cùng
                 userPIN.update(buf, newOffset, newLen);
+               
                 
             } catch (Exception e) {
                 // ROLLBACK nu c li
@@ -137,9 +137,7 @@ public class PinManager {
                 Util.arrayFillNonAtomic(backupWrappedKey, (short)0, (short)16, (byte)0);
             }
         }
-		// Clear keys from memory after successful change and reset validation
-		userPIN.reset();
-		cryptoManager.clearKey();
+		// Không cần reset PIN validation và clear key - user vẫn authenticated sau khi đổi PIN thành công
     }
 
     public void getPinTries(APDU apdu) {
