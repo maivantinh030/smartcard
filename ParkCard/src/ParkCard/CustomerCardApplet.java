@@ -334,9 +334,13 @@ public class CustomerCardApplet extends Applet {
      * Output: 9000 success
      * 
      * Lưu ý: Command này mất vài giây để thực hiện (tạo khóa RSA-1024)
+     * Private key sẽ được mã hóa bằng Master Key và lưu vào persistent memory
      */
     private void generateRSAKeyPair(APDU apdu) {
-        model.generateRSAKeyPair();
+        if (!model.isDataReady() || !cryptoMgr.isKeyReady()) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED); // Phải verify PIN trước
+        }
+        model.generateRSAKeyPair(cryptoMgr);
         // Success - chỉ return SW_NO_ERROR
     }
     
@@ -470,6 +474,10 @@ public class CustomerCardApplet extends Applet {
             if (!model.isDataEncrypted()) {
                 model.initializeBalance(cryptoMgr);
             }
+            
+            // Giải mã RSA private key ngay sau khi verify admin PIN
+            // Luồng: Verify PIN → Unwrap Master Key → Giải mã RSA private key
+            model.decryptAndImportRSAPrivateKey(cryptoMgr);
         } else {
             model.setDataReady(false);
             cryptoMgr.clearKey();
