@@ -75,8 +75,10 @@ fun GameSelectionScreen(
                 println("🎮 Lấy danh sách games từ server...")
                 val result = gameApiClient.getAllGames()
                 if (result.isSuccess) {
-                    games = result.getOrNull() ?: emptyList()
-                    println("✅ Đã lấy ${games.size} games từ server")
+                    val allGames = result.getOrNull() ?: emptyList()
+                    // Chỉ hiển thị các game đang hoạt động (isActive = true)
+                    games = allGames.filter { it.isActive }
+                    println("✅ Đã lấy ${allGames.size} games từ server, hiển thị ${games.size} game đang hoạt động")
                 } else {
                     errorMessage = "Lỗi tải games: ${result.exceptionOrNull()?.message}"
                     println("❌ $errorMessage")

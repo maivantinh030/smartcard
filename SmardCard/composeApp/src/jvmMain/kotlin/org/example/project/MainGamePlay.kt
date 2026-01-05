@@ -18,9 +18,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.example.project.model.GameDto
+import org.example.project.network.RSAApiClient
 import org.example.project.screen.ConnectScreen
 import org.example.project.screen.FloatingBubbles
 import org.example.project.screen.GameSelectionScreen
@@ -139,6 +142,7 @@ private fun GamePlayScreen(
     var statusMessage by remember { mutableStateOf("⏳ Đang đọc thẻ...") }
 
     val scope = rememberCoroutineScope()
+    val rsaApi = remember { RSAApiClient() }
 
     fun processCard() {
         scope.launch {
@@ -151,6 +155,23 @@ private fun GamePlayScreen(
                 println("Game: ${game.gameName}")
                 println("Code: ${game.gameCode}")
                 println("───────────────────────────────────")
+
+                // Xác thực RSA với admin PIN đã mã hóa (thẻ đã có RSA key từ lần ghi thông tin)
+                statusMessage = "🔐 Đang xác thực RSA..."
+                println("🔐 Xác thực RSA với admin PIN đã mã hóa...")
+                val rsaAuthOk = withContext(Dispatchers.IO) {
+                    smartCardManager.authenticateRSA("9999", rsaApi)
+                }
+                
+                if (!rsaAuthOk) {
+                    println("❌ Xác thực RSA thất bại")
+                    statusMessage = "❌ XÁC THỰC RSA THẤT BẠI!\n\nKhông thể xác thực thẻ"
+                    delay(3000)
+                    smartCardManager.disconnect()
+                    onComplete()
+                    return@launch
+                }
+                println("✅ Xác thực RSA thành công")
 
                 // Tìm game cụ thể trên thẻ
                 statusMessage = "⏳ Đang kiểm tra lượt chơi..."

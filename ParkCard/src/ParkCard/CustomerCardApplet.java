@@ -35,8 +35,6 @@ public class CustomerCardApplet extends Applet {
     // RSA Challenge-Response instructions
     private static final byte INS_SET_CUSTOMER_ID = (byte) 0x17;
     private static final byte INS_GET_CUSTOMER_ID = (byte) 0x18;
-    private static final byte INS_SET_RSA_EXPONENT = (byte) 0x19;
-    private static final byte INS_SET_RSA_MODULUS = (byte) 0x1A;
     private static final byte INS_SIGN_CHALLENGE = (byte) 0x1B;
     private static final byte INS_GET_RSA_STATUS = (byte) 0x1C;
     private static final byte INS_GENERATE_RSA_KEYPAIR = (byte) 0x1D;
@@ -47,6 +45,11 @@ public class CustomerCardApplet extends Applet {
     private static final byte INS_VERIFY_ADMIN_PIN = (byte) 0x1F;
     private static final byte INS_RESET_USER_PIN = (byte) 0x21;
     private static final byte INS_GET_ADMIN_PIN_TRIES = (byte) 0x22;
+    
+    // Session key và encrypted PIN commands
+    private static final byte INS_SET_SESSION_KEY = (byte) 0x23;
+    private static final byte INS_VERIFY_ADMIN_PIN_ENCRYPTED = (byte) 0x24;
+    private static final byte INS_VERIFY_PIN_ENCRYPTED = (byte) 0x25;
 
     private static final short SW_SECURITY_STATUS_NOT_SATISFIED = (short) 0x6982;
     private static final short SW_AUTHENTICATION_METHOD_BLOCKED = (short) 0x6983;
@@ -148,12 +151,6 @@ public class CustomerCardApplet extends Applet {
             case INS_GET_CUSTOMER_ID: 
             	getCustomerID(apdu); 
             	break;
-            case INS_SET_RSA_EXPONENT: 
-            	setRSAExponent(apdu); 
-            	break;
-            case INS_SET_RSA_MODULUS: 
-            	setRSAModulus(apdu); 
-            	break;
             case INS_SIGN_CHALLENGE: 
             	signChallenge(apdu); 
             	break;
@@ -172,6 +169,11 @@ public class CustomerCardApplet extends Applet {
             case INS_VERIFY_ADMIN_PIN: verifyAdminPIN(apdu); break;
             case INS_RESET_USER_PIN: resetUserPIN(apdu); break;
             case INS_GET_ADMIN_PIN_TRIES: pinMgr.getAdminPinTries(apdu); break;
+            
+            // Session key và encrypted PIN commands
+            case INS_SET_SESSION_KEY: setSessionKey(apdu); break;
+            case INS_VERIFY_ADMIN_PIN_ENCRYPTED: verifyAdminPINEncrypted(apdu); break;
+            case INS_VERIFY_PIN_ENCRYPTED: verifyPINEncrypted(apdu); break;
             
             default:
                 ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
@@ -271,44 +273,6 @@ public class CustomerCardApplet extends Applet {
         apdu.setOutgoingLength((short)15);
         apdu.sendBytesLong(buf, (short)0, (short)15);
     }
-    
-    /**
-     * INS_SET_RSA_EXPONENT (0x92)
-     * L�u RSA private key exponent (ch gi 1 ln khi to th)
-     * Input: [exponent bytes] (128 bytes cho RSA-1024)
-     * Output: 9000 success
-     */
-    private void setRSAExponent(APDU apdu) {
-        byte[] buf = apdu.getBuffer();
-        short lc = apdu.setIncomingAndReceive();
-        
-        if (lc != 128) {
-            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-        }
-        
-        model.setRSAExponent(buf, ISO7816.OFFSET_CDATA, lc);        
-        // Send response 9000
-        apdu.setOutgoing();
-        apdu.setOutgoingLength((short)0);    }
-    
-    /**
-     * INS_SET_RSA_MODULUS (0x93)
-     * L�u RSA private key modulus (ch gi 1 ln khi to th)
-     * Input: [modulus bytes] (128 bytes cho RSA-1024)
-     * Output: 9000 success
-     */
-    private void setRSAModulus(APDU apdu) {
-        byte[] buf = apdu.getBuffer();
-        short lc = apdu.setIncomingAndReceive();
-        
-        if (lc != 128) {
-            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
-        }
-        
-        model.setRSAModulus(buf, ISO7816.OFFSET_CDATA, lc);        
-        // Send response 9000
-        apdu.setOutgoing();
-        apdu.setOutgoingLength((short)0);    }
     
     /**
      * INS_SIGN_CHALLENGE (0x94)
@@ -438,6 +402,148 @@ public class CustomerCardApplet extends Applet {
             ISOException.throwIt((short)0x6985);  // Conditions of use not satisfied - must verify admin PIN first
         }
         pinMgr.resetUserPIN(apdu);
+    }
+    
+    /**
+     * INS_SET_SESSION_KEY (0x23)
+     * Lần đầu connect, terminal gửi session key xuống card
+     * Input: [16 bytes session key]
+     * Output: 9000 success
+     */
+    private void setSessionKey(APDU apdu) {
+        byte[] buf = apdu.getBuffer();
+        short lc = apdu.setIncomingAndReceive();
+        
+        if (lc != 16) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        
+        // Lưu session key vào CardModel
+        model.setSessionKey(buf, ISO7816.OFFSET_CDATA);
+    }
+    
+    /**
+     * INS_VERIFY_ADMIN_PIN_ENCRYPTED (0x24)
+     * Verify admin PIN đã được mã hóa bằng session key
+     * Input: [encrypted admin PIN bytes] (đã được mã hóa bằng session key, padded to 16 bytes)
+     * Output: 9000 success, 6A80 wrong PIN, 6983 blocked
+     * 
+     * Flow:
+     * 1. Terminal mã hóa admin PIN bằng session key
+     * 2. Gửi admin PIN đã mã hóa xuống card
+     * 3. Card giải mã admin PIN bằng session key
+     * 4. Dùng admin PIN để unwrap master key
+     * 5. Master key được dùng để giải mã private key RSA (nếu cần)
+     */
+    private void verifyAdminPINEncrypted(APDU apdu) {
+        if (!model.isSessionKeySet()) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED); // Session key chưa được set
+        }
+        
+        byte[] buf = apdu.getBuffer();
+        short lc = apdu.setIncomingAndReceive();
+        
+        // Admin PIN được mã hóa, phải là bội số của 16 (AES block size)
+        // PIN thường 4-8 bytes, sau khi padding sẽ là 16 bytes
+        if (lc != 16) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        
+        // Giải mã admin PIN bằng session key
+        byte[] decryptedPin = JCSystem.makeTransientByteArray((short)16, JCSystem.CLEAR_ON_DESELECT);
+        cryptoMgr.decryptWithSessionKey(buf, ISO7816.OFFSET_CDATA, (short)16, decryptedPin, (short)0, model.getSessionKey(), (short)0);
+        
+        // Tìm độ dài thực của PIN (loại bỏ padding)
+        byte pinLen = 0;
+        for (short i = 0; i < 16; i++) {
+            if (decryptedPin[i] == 0x00) {
+                pinLen = (byte)i;
+                break;
+            }
+        }
+        if (pinLen == 0) pinLen = 16; // Không có padding, PIN đầy 16 bytes
+        
+        // Verify admin PIN với PIN đã giải mã
+        if (pinMgr.verifyAdmin(decryptedPin, (short)0, pinLen)) {
+            // Verify thành công - key đã được derive trong pinMgr.verifyAdmin()
+            model.setDataReady(true);
+            if (!model.isDataEncrypted()) {
+                model.initializeBalance(cryptoMgr);
+            }
+        } else {
+            model.setDataReady(false);
+            cryptoMgr.clearKey();
+            if (pinMgr.getAdminTriesRemaining() == 0) {
+                ISOException.throwIt(SW_AUTHENTICATION_METHOD_BLOCKED);
+            } else {
+                ISOException.throwIt((short)0x6A80);
+            }
+        }
+        
+        // Xóa PIN đã giải mã khỏi RAM
+        Util.arrayFillNonAtomic(decryptedPin, (short)0, (short)16, (byte)0);
+    }
+    
+    /**
+     * INS_VERIFY_PIN_ENCRYPTED (0x25)
+     * Verify user PIN đã được mã hóa bằng session key
+     * Input: [encrypted user PIN bytes] (đã được mã hóa bằng session key, padded to 16 bytes)
+     * Output: 9000 success, 6A80 wrong PIN, 6983 blocked
+     * 
+     * Flow:
+     * 1. Terminal mã hóa user PIN bằng session key
+     * 2. Gửi user PIN đã mã hóa xuống card
+     * 3. Card giải mã user PIN bằng session key
+     * 4. Dùng user PIN để unwrap master key
+     * 5. Master key được dùng để giải mã private key RSA (nếu cần)
+     */
+    private void verifyPINEncrypted(APDU apdu) {
+        if (!model.isSessionKeySet()) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED); // Session key chưa được set
+        }
+        
+        byte[] buf = apdu.getBuffer();
+        short lc = apdu.setIncomingAndReceive();
+        
+        // User PIN được mã hóa, phải là bội số của 16 (AES block size)
+        // PIN thường 4-8 bytes, sau khi padding sẽ là 16 bytes
+        if (lc != 16) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        
+        // Giải mã user PIN bằng session key
+        byte[] decryptedPin = JCSystem.makeTransientByteArray((short)16, JCSystem.CLEAR_ON_DESELECT);
+        cryptoMgr.decryptWithSessionKey(buf, ISO7816.OFFSET_CDATA, (short)16, decryptedPin, (short)0, model.getSessionKey(), (short)0);
+        
+        // Tìm độ dài thực của PIN (loại bỏ padding)
+        byte pinLen = 0;
+        for (short i = 0; i < 16; i++) {
+            if (decryptedPin[i] == 0x00) {
+                pinLen = (byte)i;
+                break;
+            }
+        }
+        if (pinLen == 0) pinLen = 16; // Không có padding, PIN đầy 16 bytes
+        
+        // Verify user PIN với PIN đã giải mã
+        if (pinMgr.verify(decryptedPin, (short)0, pinLen)) {
+            // Verify thành công - key đã được derive trong pinMgr.verify()
+            model.setDataReady(true);
+            if (!model.isDataEncrypted()) {
+                model.initializeBalance(cryptoMgr);
+            }
+        } else {
+            model.setDataReady(false);
+            cryptoMgr.clearKey();
+            if (pinMgr.getTriesRemaining() == 0) {
+                ISOException.throwIt(SW_AUTHENTICATION_METHOD_BLOCKED);
+            } else {
+                ISOException.throwIt((short)0x6A80);
+            }
+        }
+        
+        // Xóa PIN đã giải mã khỏi RAM
+        Util.arrayFillNonAtomic(decryptedPin, (short)0, (short)16, (byte)0);
     }
     
     public void deselect() {
