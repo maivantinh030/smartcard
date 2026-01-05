@@ -141,6 +141,38 @@ public class CryptoManager {
         ecbCipher.doFinal(ciphertext, ctOff, ctLen, plaintext, ptOff);
     }
 
+    /**
+     * Decrypt data với session key (ECB mode, vì chỉ có 1 block)
+     * Dùng để giải mã admin PIN đã được mã hóa bằng session key
+     */
+    public void decryptWithSessionKey(byte[] ciphertext, short ctOff, short ctLen,
+                                     byte[] plaintext, short ptOff,
+                                     byte[] sessionKey, short keyOff) {
+        if (ctLen % 16 != 0) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        AESKey sessionKeyObj = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
+        sessionKeyObj.setKey(sessionKey, keyOff);
+        ecbCipher.init(sessionKeyObj, Cipher.MODE_DECRYPT);
+        ecbCipher.doFinal(ciphertext, ctOff, ctLen, plaintext, ptOff);
+    }
+    
+    /**
+     * Encrypt data với session key (ECB mode)
+     * Dùng để mã hóa admin PIN trước khi gửi xuống card
+     */
+    public void encryptWithSessionKey(byte[] plaintext, short ptOff, short ptLen,
+                                     byte[] ciphertext, short ctOff,
+                                     byte[] sessionKey, short keyOff) {
+        if (ptLen % 16 != 0) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        AESKey sessionKeyObj = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
+        sessionKeyObj.setKey(sessionKey, keyOff);
+        ecbCipher.init(sessionKeyObj, Cipher.MODE_ENCRYPT);
+        ecbCipher.doFinal(plaintext, ptOff, ptLen, ciphertext, ctOff);
+    }
+
     /** Clear all secrets from RAM. */
     public void clearKey() {
         Util.arrayFillNonAtomic(aesKey, (short)0, AES_KEY_SIZE, (byte)0);

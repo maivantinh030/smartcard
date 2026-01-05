@@ -282,7 +282,7 @@ import kotlin.dec
 //                                            isVerifying = true
 //                                            errorMessage = ""
 //
-//                                            val success = smartCardManager.verifyPIN(pin)
+//                                            val success = smartCardManager.verifyPINEncrypted(pin)
 //                                            if (success) {
 //                                                onPinVerified()
 //                                            } else {
@@ -608,7 +608,7 @@ fun PinEntryScreen(
                                             isVerifying = true
                                             errorMessage = ""
 
-                                            val success = smartCardManager.verifyPIN(pin)
+                                            val success = smartCardManager.verifyPINEncrypted(pin)
                                             if (success) {
                                                 onPinVerified()
                                             } else {

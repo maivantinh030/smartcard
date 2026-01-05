@@ -142,35 +142,31 @@ fun ConnectScreen(
                             return@launch
                         }
 
-                        // Admin mode: skip RSA handshake, nhưng kiểm tra và tạo PIN nếu cần
+                        // Admin mode: Chỉ tạo PIN nếu cần, tự động verify admin PIN, không xác thực RSA (vì chưa có RSA key)
                         if (!requireRSAAuth) {
-                            // Kiểm tra và tạo PIN mặc định nếu chưa có
-                            val (userTries, userCreated, _) = smartCardManager.getPINStatus()
-                            val (adminTries, adminCreated, _) = smartCardManager.getAdminPINStatus()
+                            // Tạo PIN mặc định nếu chưa có
+                            val (_, userCreated, _) = smartCardManager.getPINStatus()
+                            val (_, adminCreated, _) = smartCardManager.getAdminPINStatus()
                             
-                            if (!userCreated) {
-                                status = "Đang tạo User PIN mặc định..."
-                                val userPinCreated = smartCardManager.createPIN("1234")
-                                if (!userPinCreated) {
-                                    status = "Không thể tạo User PIN"
-                                    isConnecting = false
-                                    return@launch
-                                }
+                            if (!userCreated) smartCardManager.createPIN("1234")
+                            if (!adminCreated) smartCardManager.createAdminPIN("9999")
+                            
+                            // Tự động verify admin PIN đã mã hóa với PIN mặc định "9999"
+                            status = "Đang xác thực Admin PIN..."
+                            val pinVerified = withContext(Dispatchers.IO) {
+                                smartCardManager.verifyAdminPINEncrypted("9999")
                             }
                             
-                            if (!adminCreated) {
-                                status = "Đang tạo Admin PIN mặc định..."
-                                val adminPinCreated = smartCardManager.createAdminPIN("9999")
-                                if (!adminPinCreated) {
-                                    status = "Không thể tạo Admin PIN"
-                                    isConnecting = false
-                                    return@launch
-                                }
+                            if (pinVerified) {
+                                status = "✅ Thẻ đã kết nối và xác thực thành công"
+                                // Không xác thực RSA ở đây vì chưa có RSA keypair
+                                // RSA keypair sẽ được tạo sau khi ghi thông tin
+                                isConnecting = false
+                                onCardConnected()
+                            } else {
+                                status = "❌ Xác thực Admin PIN thất bại"
+                                isConnecting = false
                             }
-                            
-                            status = "Thẻ đã kết nối"
-                            isConnecting = false
-                            onCardConnected()
                             return@launch
                         }
 

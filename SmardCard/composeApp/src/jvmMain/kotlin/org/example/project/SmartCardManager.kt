@@ -14,6 +14,9 @@ class SmartCardManager {
     private var terminals: CardTerminals? = null
     private var card: Card? = null
     private var channel: CardChannel? = null
+    
+    // Session key được lưu trong SessionKeyStore để chia sẻ giữa tất cả các instance
+    // Không cần lưu riêng trong mỗi instance nữa
 
     init {
         try {
@@ -43,13 +46,65 @@ class SmartCardManager {
             if (terminal?. isCardPresent == true) {
                 card = terminal.connect("*")
                 channel = card?.basicChannel
-                selectApplet()
+                if (selectApplet()) {
+                    // Session key đã được định nghĩa sẵn trong SessionKeyStore
+                    println("🔑 Sử dụng session key cố định")
+                    SessionKeyStore.printSessionKey() // In ra để debug
+                    
+                    // CHỈ gửi session key lần đầu khi chưa gửi xuống card
+                    if (!SessionKeyStore.isKeySentToCard()) {
+                        println("📤 Gửi session key xuống card lần đầu...")
+                        if (sendSessionKeyToCard()) {
+                            SessionKeyStore.markKeySentToCard()
+                            println("✅ Session key đã được gửi và lưu ở card")
+                        } else {
+                            println("⚠️ Không thể gửi session key")
+                        }
+                    } else {
+                        println("✅ Session key đã được gửi trước đó, không cần gửi lại")
+                    }
+                    return true
+                }
+                return false
             } else {
                 println("No card present in reader:  ${readerName ?: "default"}")
                 false
             }
         } catch (e: Exception) {
             println("Error connecting to card: ${e.message}")
+            false
+        }
+    }
+    
+    /**
+     * Gửi session key xuống card
+     * Session key được lưu trong SessionKeyStore và không đổi, nhưng cần gửi lại mỗi lần connect
+     */
+    private fun sendSessionKeyToCard(): Boolean {
+        return try {
+            val sessionKey = SessionKeyStore.getSessionKey()
+            if (sessionKey == null) {
+                println("❌ Session key chưa được khởi tạo trong SessionKeyStore")
+                return false
+            }
+            
+            // Gửi session key xuống card
+            val cmd = byteArrayOf(0x80.toByte(), 0x23, 0x00, 0x00, 0x10) + sessionKey
+            val response = sendCommand(cmd) ?: return false
+            
+            val sw = getStatusWord(response)
+            when (sw) {
+                0x9000 -> {
+                    println("✅ Session key đã được gửi xuống card")
+                    true
+                }
+                else -> {
+                    println("❌ Không thể gửi session key: SW=${sw.toString(16)}")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Error sending session key: ${e.message}")
             false
         }
     }
@@ -102,33 +157,69 @@ class SmartCardManager {
         }
     }
 
-    fun verifyPIN(pin: String): Boolean {
+    /**
+     * Verify User PIN đã được mã hóa bằng session key
+     * INS: 0x25
+     * User PIN được mã hóa bằng session key trước khi gửi xuống card
+     */
+    fun verifyPINEncrypted(pin: String): Boolean {
         return try {
+            val sessionKey = SessionKeyStore.getSessionKey()
+            
+            // Kiểm tra đã gửi key xuống card chưa (fallback nếu chưa gửi)
+            if (!SessionKeyStore.isKeySentToCard()) {
+                println("⚠️ Session key chưa được gửi xuống card. Đang gửi...")
+                if (sendSessionKeyToCard()) {
+                    SessionKeyStore.markKeySentToCard()
+                } else {
+                    println("❌ Không thể gửi session key xuống card")
+                    return false
+                }
+            }
+            
             val pinBytes = pin.toByteArray()
-            val cmd = byteArrayOf(0x80.toByte(), 0x02, 0x00, 0x00, pinBytes.size.toByte()) + pinBytes
+            
+            // Pad PIN lên 16 bytes (AES block size)
+            val paddedPin = ByteArray(16) { if (it < pinBytes.size) pinBytes[it] else 0x00 }
+            
+            // Mã hóa PIN bằng session key từ SessionKeyStore (AES-ECB)
+            val encryptedPin = encryptWithSessionKey(paddedPin, sessionKey)
+            
+            println("🔐 Đã mã hóa user PIN bằng session key từ SessionKeyStore")
+            
+            // Gửi user PIN đã mã hóa xuống card
+            // Card sẽ dùng session key đã lưu từ lần đầu để giải mã
+            val cmd = byteArrayOf(0x80.toByte(), 0x25, 0x00, 0x00, 0x10) + encryptedPin
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
             when (sw) {
                 0x9000 -> {
-                    println("PIN verified successfully")
+                    println("✅ User PIN verified successfully (encrypted)")
                     true
                 }
                 0x6983 -> {
-                    println("PIN blocked - too many wrong attempts")
+                    println("❌ User PIN blocked - too many wrong attempts")
                     false
                 }
                 0x6A80 -> {
-                    println("Wrong PIN")
+                    println("❌ Wrong User PIN")
+                    false
+                }
+                0x6985 -> {
+                    println("❌ Session key not set on card - card có thể đã bị deselect")
+                    // Reset flag để gửi lại key lần sau
+                    SessionKeyStore.resetKeySentFlag()
                     false
                 }
                 else -> {
-                    println("PIN verification failed: SW=${sw.toString(16)}")
+                    println("❌ User PIN verification failed: SW=${sw.toString(16)}")
                     false
                 }
             }
         } catch (e: Exception) {
-            println("Error verifying PIN: ${e.message}")
+            println("Error verifying User PIN (encrypted): ${e.message}")
+            e.printStackTrace()
             false
         }
     }
@@ -220,38 +311,103 @@ class SmartCardManager {
     }
 
     /**
-     * Verify Admin PIN
-     * INS: 0x1F
+     * Verify Admin PIN đã được mã hóa bằng session key
+     * INS: 0x24
+     * Admin PIN được mã hóa bằng session key trước khi gửi xuống card
+     * Card sẽ dùng session key đã lưu từ lần đầu để giải mã PIN
      */
-    fun verifyAdminPIN(pin: String): Boolean {
+    fun verifyAdminPINEncrypted(pin: String): Boolean {
         return try {
+            val sessionKey = SessionKeyStore.getSessionKey()
+            
+            // Kiểm tra đã gửi key xuống card chưa (fallback nếu chưa gửi)
+            if (!SessionKeyStore.isKeySentToCard()) {
+                println("⚠️ Session key chưa được gửi xuống card. Đang gửi...")
+                if (sendSessionKeyToCard()) {
+                    SessionKeyStore.markKeySentToCard()
+                } else {
+                    println("❌ Không thể gửi session key xuống card")
+                    return false
+                }
+            }
+            
             val pinBytes = pin.toByteArray()
-            val cmd = byteArrayOf(0x80.toByte(), 0x1F, 0x00, 0x00, pinBytes.size.toByte()) + pinBytes
+            
+            // Pad PIN lên 16 bytes (AES block size)
+            val paddedPin = ByteArray(16) { if (it < pinBytes.size) pinBytes[it] else 0x00 }
+            
+            // Mã hóa PIN bằng session key từ SessionKeyStore (AES-ECB)
+            val encryptedPin = encryptWithSessionKey(paddedPin, sessionKey)
+            
+            println("🔐 Đã mã hóa admin PIN bằng session key từ SessionKeyStore")
+            
+            // Gửi admin PIN đã mã hóa xuống card
+            // Card sẽ dùng session key đã lưu từ lần đầu để giải mã
+            val cmd = byteArrayOf(0x80.toByte(), 0x24, 0x00, 0x00, 0x10) + encryptedPin
             val response = sendCommand(cmd) ?: return false
 
             val sw = getStatusWord(response)
             when (sw) {
                 0x9000 -> {
-                    println("Admin PIN verified successfully")
+                    println("✅ Admin PIN verified successfully (encrypted)")
                     true
                 }
                 0x6983 -> {
-                    println("Admin PIN blocked - too many wrong attempts")
+                    println("❌ Admin PIN blocked - too many wrong attempts")
                     false
                 }
                 0x6A80 -> {
-                    println("Wrong Admin PIN")
+                    println("❌ Wrong Admin PIN")
+                    false
+                }
+                0x6985 -> {
+                    println("❌ Session key not set on card - card có thể đã bị deselect")
+                    // Reset flag để gửi lại key lần sau
+                    SessionKeyStore.resetKeySentFlag()
                     false
                 }
                 else -> {
-                    println("Admin PIN verification failed: SW=${sw.toString(16)}")
+                    println("❌ Admin PIN verification failed: SW=${sw.toString(16)}")
                     false
                 }
             }
         } catch (e: Exception) {
-            println("Error verifying Admin PIN: ${e.message}")
+            println("Error verifying Admin PIN (encrypted): ${e.message}")
+            e.printStackTrace()
             false
         }
+    }
+    
+    /**
+     * Mã hóa data bằng session key (AES-ECB)
+     */
+    private fun encryptWithSessionKey(data: ByteArray, key: ByteArray): ByteArray {
+        val cipher = javax.crypto.Cipher.getInstance("AES/ECB/NoPadding")
+        val secretKey = javax.crypto.spec.SecretKeySpec(key, "AES")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, secretKey)
+        return cipher.doFinal(data)
+    }
+    
+    /**
+     * Lấy session key hiện tại (dạng hex string để debug)
+     * Trả về null nếu chưa có session key
+     */
+    fun getSessionKeyHex(): String? {
+        return SessionKeyStore.getSessionKeyHex()
+    }
+    
+    /**
+     * Kiểm tra session key đã được khởi tạo chưa
+     */
+    fun isSessionKeyReady(): Boolean {
+        return SessionKeyStore.hasSessionKey()
+    }
+    
+    /**
+     * In session key ra console (để debug)
+     */
+    fun printSessionKey() {
+        SessionKeyStore.printSessionKey()
     }
 
     /**
@@ -452,7 +608,6 @@ class SmartCardManager {
                 println("❌ Dữ liệu không đủ: ${data.size} < $INFO_LEN")
                 return emptyMap()
             }
-
             var pos = 0
             val customerID = String(data, pos, LEN_ID, Charsets.UTF_8).trim('\u0000', ' ')
             pos += LEN_ID
@@ -690,7 +845,6 @@ class SmartCardManager {
     private fun parseCustomerBasicInfo(data: ByteArray): Customer {
         val LEN_ID = 16; val LEN_NAME = 64; val LEN_DOB = 16; val LEN_PHONE = 16
         var pos = 0
-
         val maKH = String(data, pos, LEN_ID).trim('\u0000', ' ')
         pos += LEN_ID
         val hoTen = String(data, pos, LEN_NAME).trim('\u0000', ' ')
@@ -726,12 +880,10 @@ class SmartCardManager {
                 println("Invalid amount:  $amount")
                 return false
             }
-
             val amountBytes = byteArrayOf(
                 (amount shr 8).toByte(),
                 (amount and 0xFF).toByte()
             )
-
             val cmd = byteArrayOf(0x80.toByte(), 0x0D, 0x00, 0x00, 0x02) + amountBytes
             val response = sendCommand(cmd) ?: return false
 
@@ -1083,81 +1235,14 @@ class SmartCardManager {
         }
     }
 
-    /**
-     * Set RSA private key exponent (128 bytes for RSA-1024)
-     * INS: 0x92
-     */
-    fun setRSAExponent(exponent: ByteArray): Boolean {
-        return try {
-            if (exponent.size != 128) {
-                println("RSA exponent must be 128 bytes, got ${exponent.size}")
-                return false
-            }
-            
-            val cmd = byteArrayOf(0x80.toByte(), 0x19, 0x00, 0x00, 0x80.toByte()) + exponent
-            val response = sendCommand(cmd) ?: return false
-            
-            val sw = getStatusWord(response)
-            when (sw) {
-                0x9000 -> {
-                    println("RSA exponent set successfully")
-                    true
-                }
-                else -> {
-                    println("Failed to set RSA exponent: SW=${sw.toString(16)}")
-                    false
-                }
-            }
-        } catch (e: Exception) {
-            println("Error setting RSA exponent: ${e.message}")
-            false
-        }
-    }
 
-    /**
-     * Set RSA private key modulus (128 bytes for RSA-1024)
-     * INS: 0x93
-     */
-    fun setRSAModulus(modulus: ByteArray): Boolean {
-        return try {
-            if (modulus.size != 128) {
-                println("RSA modulus must be 128 bytes, got ${modulus.size}")
-                return false
-            }
-            
-            val cmd = byteArrayOf(0x80.toByte(), 0x1A, 0x00, 0x00, 0x80.toByte()) + modulus
-            val response = sendCommand(cmd) ?: return false
-            
-            val sw = getStatusWord(response)
-            when (sw) {
-                0x9000 -> {
-                    println("RSA modulus set successfully")
-                    true
-                }
-                else -> {
-                    println("Failed to set RSA modulus: SW=${sw.toString(16)}")
-                    false
-                }
-            }
-        } catch (e: Exception) {
-            println("Error setting RSA modulus: ${e.message}")
-            false
-        }
-    }
 
-    /**
-     * Sign a challenge with RSA private key (SHA1withRSA)
-     * INS: 0x94
-     * Input: 32 bytes challenge
-     * Output: 128 bytes signature (RSA-1024)
-     */
     fun signChallenge(challenge: ByteArray): ByteArray? {
         return try {
             if (challenge.size != 32) {
                 println("Challenge must be 32 bytes, got ${challenge.size}")
                 return null
             }
-            
             // Card expects exactly 32 bytes in the incoming buffer; no Le byte is needed.
             val cmd = byteArrayOf(0x80.toByte(), 0x1B, 0x00, 0x00, 0x20) + challenge
             val response = sendCommand(cmd) ?: return null
@@ -1301,6 +1386,33 @@ class SmartCardManager {
         } catch (e: Exception) {
             println("⚠️ getPublicKeyAsPEM error: ${e.message}")
             null
+        }
+    }
+    
+    /**
+     * Xác thực RSA đơn giản: Verify admin PIN đã mã hóa → Sign challenge → Verify với server
+     */
+    fun authenticateRSA(adminPin: String, rsaApi: org.example.project.network.RSAApiClient): Boolean {
+        return try {
+            // 1. Verify admin PIN đã mã hóa (unwrap master key → giải mã RSA private key)
+            if (!verifyAdminPINEncrypted(adminPin)) return false
+            
+            // 2. Lấy challenge và sign
+            val custId = getCustomerIDRSA() ?: return false
+            val challengeDto = rsaApi.getChallenge().getOrElse { return false }
+            val challengeBytes = Base64.getDecoder().decode(challengeDto.challenge)
+            if (challengeBytes.size != 32) return false
+            
+            val signature = signChallenge(challengeBytes) ?: return false
+            
+            // 3. Verify với server
+            val sigB64 = Base64.getEncoder().encodeToString(signature)
+            val verifyResp = rsaApi.verifySignature(custId, challengeDto.challenge, sigB64).getOrElse { return false }
+            
+            verifyResp.success
+        } catch (e: Exception) {
+            println("❌ Lỗi xác thực RSA: ${e.message}")
+            false
         }
     }
 

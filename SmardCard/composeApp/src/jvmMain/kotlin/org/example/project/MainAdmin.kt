@@ -10,9 +10,8 @@
         import androidx.compose.ui.window.application
         import org.example.project.auth.AdminSession
         import org.example.project.config.ServerConfig
-        import org.example.project.screen.ConnectScreen
-        import org.example.project.screen.admin.AdminPinEntryScreen
-        import org.example.project.screen.admin.AdminGameManagementScreen
+import org.example.project.screen.ConnectScreen
+import org.example.project.screen.admin.AdminGameManagementScreen
         import org.example.project.screen.admin.AdminLoginScreen
         import org.example.project.screen.admin.AdminMainMenuScreen
         import org.example.project.screen.admin.AdminRechargeScreen
@@ -26,7 +25,6 @@
         enum class AdminScreen {
             ADMIN_LOGIN,
             CONNECT,
-            PIN_ENTRY,
             MAIN,
             WRITE_INFO,
             VIEW_CUSTOMER,
@@ -59,16 +57,10 @@
                 }
                 AdminScreen.CONNECT -> {
                     ConnectScreen(
-                        onCardConnected = { currentScreen = AdminScreen.PIN_ENTRY },
+                        onCardConnected = { currentScreen = AdminScreen.MAIN },
                         onRequireRSASetup = { currentScreen = AdminScreen.RSA_AUTH },
                         smartCardManager = smartCardManager,
                         requireRSAAuth = false
-                    )
-                }
-                AdminScreen.PIN_ENTRY -> {
-                    AdminPinEntryScreen(
-                        smartCardManager = smartCardManager,
-                        onPinVerified = { currentScreen = AdminScreen.MAIN }
                     )
                 }
                 AdminScreen.MAIN -> {
